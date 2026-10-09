@@ -6,6 +6,7 @@ namespace Semitexa\LaravelAiVerify;
 
 use Illuminate\Support\ServiceProvider;
 use Semitexa\LaravelAiVerify\Console\GraphCommand;
+use Semitexa\LaravelAiVerify\Console\InstallCommand;
 use Semitexa\LaravelAiVerify\Console\MigrationProbeCommand;
 use Semitexa\LaravelAiVerify\Console\VerifyCommand;
 
@@ -29,6 +30,7 @@ final class AiVerifyServiceProvider extends ServiceProvider
         $this->commands([
             VerifyCommand::class,
             GraphCommand::class,
+            InstallCommand::class,
             MigrationProbeCommand::class,
         ]);
     }
