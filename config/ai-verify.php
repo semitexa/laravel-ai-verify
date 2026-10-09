@@ -72,6 +72,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Claude Code Stop hook (php artisan ai:verify:install --hook)
+    |--------------------------------------------------------------------------
+    |
+    | Scope used when Claude is about to finish. `minimal` keeps the hook to a
+    | few seconds; `standard` also runs static analysis and related tests.
+    |
+    */
+
+    'hook' => [
+        'scope' => env('AI_VERIFY_HOOK_SCOPE', 'standard'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Kind overrides
     |--------------------------------------------------------------------------
     |
