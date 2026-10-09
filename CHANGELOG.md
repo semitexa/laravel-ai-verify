@@ -2,7 +2,7 @@
 
 ## 0.4.2 — 2026-10-09
 
-- The GitHub Action now lives in this repository: `uses: semitexa/laravel-ai-verify@v0.4.2`. `semitexa/laravel-ai-verify-action` is archived. `action.yml` is excluded from the Composer package.
+- The GitHub Action now lives in this repository: `uses: semitexa/laravel-ai-verify@v0.4.2`. `semitexa/laravel-ai-verify-action` is archived. `action.yml` stays in the source archive: GitHub downloads an Action as that archive, so excluding it with `export-ignore` would hide it from GitHub.
 
 ## 0.4.1 — 2026-10-09
 
