@@ -17,9 +17,9 @@ use Throwable;
  */
 final class MigrationProbeCommand extends Command
 {
-    protected $signature = 'semitexa:verify:migration {file : Migration path relative to the project}';
+    protected $signature = 'ai:verify:migration {file : Migration path relative to the project}';
 
-    protected $description = 'Internal probe used by semitexa:verify';
+    protected $description = 'Internal probe used by ai:verify';
 
     protected $hidden = true;
 

@@ -21,10 +21,10 @@ use Semitexa\LaravelAiVerify\Verify\TestLocator;
  * syntax / Blade / Pint / PHPStan / Laravel boot / test checks it needs,
  * runs them with timeouts, and emits a verdict an agent can act on.
  *
- *   php artisan semitexa:verify                       # uncommitted work (default)
- *   php artisan semitexa:verify --git-ref=main        # everything since main
- *   php artisan semitexa:verify --files=app/Models/Post.php --scope=minimal
- *   git diff --name-status HEAD~3 | php artisan semitexa:verify --diff-stdin
+ *   php artisan ai:verify                       # uncommitted work (default)
+ *   php artisan ai:verify --git-ref=main        # everything since main
+ *   php artisan ai:verify --files=app/Models/Post.php --scope=minimal
+ *   git diff --name-status HEAD~3 | php artisan ai:verify --diff-stdin
  *
  * Exit code: 0 for pass/skipped, 1 for fail/incomplete.
  *
@@ -32,7 +32,7 @@ use Semitexa\LaravelAiVerify\Verify\TestLocator;
  */
 final class VerifyCommand extends Command
 {
-    protected $signature = 'semitexa:verify
+    protected $signature = 'ai:verify
         {--files=* : Changed paths (repeatable, or comma-separated)}
         {--git-ref= : Verify everything that differs from this ref (plus untracked files)}
         {--diff-stdin : Read `git diff --name-only` / `--name-status` output from stdin}
@@ -254,7 +254,7 @@ final class VerifyCommand extends Command
                 $scope = $event['requested_scope'] === $event['effective_scope']
                     ? $event['effective_scope']
                     : "{$event['requested_scope']} → {$event['effective_scope']}";
-                $this->line("  <options=bold>semitexa:verify</> · {$event['changed_files']} changed file(s) · scope <fg=cyan>{$scope}</> · {$event['targets']} check(s) · source {$event['source']}");
+                $this->line("  <options=bold>ai:verify</> · {$event['changed_files']} changed file(s) · scope <fg=cyan>{$scope}</> · {$event['targets']} check(s) · source {$event['source']}");
                 $this->newLine();
                 break;
 

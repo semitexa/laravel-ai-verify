@@ -144,7 +144,7 @@ final class Report
         if ($this->verdict !== Result::FAIL && $next === []) {
             $next[] = $this->verdict === Result::PASS
                 ? ['cmd' => 'git add -A && git commit', 'why' => 'the change set is verified']
-                : ['cmd' => 'php artisan semitexa:verify --dirty --scope=broad', 'why' => 'nothing conclusive ran at this scope'];
+                : ['cmd' => 'php artisan ai:verify --dirty --scope=broad', 'why' => 'nothing conclusive ran at this scope'];
         }
 
         return $next;

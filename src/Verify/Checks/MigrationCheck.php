@@ -25,7 +25,7 @@ final class MigrationCheck implements Check
     public function run(Target $target): Result
     {
         $file = (string) $target->params['file'];
-        $outcome = $this->runner->run($this->workspace->artisan('semitexa:verify:migration', $file, '--no-interaction'));
+        $outcome = $this->runner->run($this->workspace->artisan('ai:verify:migration', $file, '--no-interaction'));
 
         if ($outcome->aborted()) {
             return Result::aborted($outcome);

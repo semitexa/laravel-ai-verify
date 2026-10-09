@@ -69,7 +69,7 @@ final class CommandsTest extends TestCase
 
     public function test_a_syntax_error_fails_with_a_located_violation(): void
     {
-        $events = $this->ndjson('semitexa:verify', ['--files' => ['app/Broken.php'], '--scope' => 'minimal', '--ndjson' => true]);
+        $events = $this->ndjson('ai:verify', ['--files' => ['app/Broken.php'], '--scope' => 'minimal', '--ndjson' => true]);
 
         $this->assertSame('fail', $this->first($events, 'verdict')['verdict']);
         $this->assertSame(1, $this->first($events, 'exit')['code']);
@@ -82,7 +82,7 @@ final class CommandsTest extends TestCase
 
     public function test_a_clean_file_passes_and_streams_the_documented_event_order(): void
     {
-        $events = $this->ndjson('semitexa:verify', ['--files' => ['app/Models/Invoice.php'], '--scope' => 'minimal', '--ndjson' => true]);
+        $events = $this->ndjson('ai:verify', ['--files' => ['app/Models/Invoice.php'], '--scope' => 'minimal', '--ndjson' => true]);
         $kinds = array_values(array_unique(array_column($events, 'kind')));
 
         $this->assertSame(['summary', 'file', 'target', 'result', 'next', 'verdict', 'exit'], $kinds);
@@ -94,7 +94,7 @@ final class CommandsTest extends TestCase
     {
         file_put_contents($this->dir.'/NOTES.md', 'notes');
 
-        Artisan::call('semitexa:verify', ['--files' => ['NOTES.md'], '--json' => true]);
+        Artisan::call('ai:verify', ['--files' => ['NOTES.md'], '--json' => true]);
         $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame('semitexa.laravel-ai-verify/v1', $report['schema']);
@@ -105,7 +105,7 @@ final class CommandsTest extends TestCase
 
     public function test_no_source_outside_git_is_an_error(): void
     {
-        $events = $this->ndjson('semitexa:verify', ['--ndjson' => true]);
+        $events = $this->ndjson('ai:verify', ['--ndjson' => true]);
 
         $this->assertStringContainsString('not a git repository', $this->first($events, 'error')['error']);
         $this->assertSame(1, $this->first($events, 'exit')['code']);
@@ -115,13 +115,13 @@ final class CommandsTest extends TestCase
     {
         unlink($this->dir.'/app/Broken.php');
 
-        Artisan::call('semitexa:graph', ['--impact' => ['app/Models/Invoice.php'], '--json' => true]);
+        Artisan::call('ai:graph', ['--impact' => ['app/Models/Invoice.php'], '--json' => true]);
         $impact = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame(['tests/Unit/BillingTest.php' => ['app/Models/Invoice.php']], $impact['tests']);
         $this->assertContains('class:App\Billing', $impact['files'][0]['sample']);
 
-        Artisan::call('semitexa:graph', ['node' => 'Invoice', '--json' => true]);
+        Artisan::call('ai:graph', ['node' => 'Invoice', '--json' => true]);
         $node = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame('class:App\Models\Invoice', $node['node']['id']);

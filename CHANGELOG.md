@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 — 2026-10-09
+
+- **Breaking:** the commands are renamed to `ai:verify` and `ai:graph`, the names Semitexa itself uses. The internal migration probe is now `ai:verify:migration`.
+- The Boost skill is renamed to `ai-verify`. Re-run `php artisan boost:install` to replace `semitexa-verify`.
+
 ## 0.1.0 — 2026-10-09
 
 First release: a Laravel port of Semitexa's `ai:verify`.

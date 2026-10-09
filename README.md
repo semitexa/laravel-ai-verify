@@ -2,14 +2,14 @@
 
 **One Artisan command that tells an AI coding agent whether its change actually works.**
 
-`semitexa:verify` reads what changed (uncommitted work, a git ref, or a file list), works out the
+`ai:verify` reads what changed (uncommitted work, a git ref, or a file list), works out the
 smallest set of checks that can vouch for that change, runs them with timeouts, and returns one
 verdict: `pass`, `fail` or `incomplete`. The verdict comes as streamed NDJSON, a JSON envelope or terminal text.
 
 ```text
-$ php artisan semitexa:verify
+$ php artisan ai:verify
 
-  semitexa:verify · 1 changed file(s) · scope standard · 5 check(s) · source dirty (default)
+  ai:verify · 1 changed file(s) · scope standard · 5 check(s) · source dirty (default)
 
   ✓ syntax:app/Http/Controllers/PostController.php 39ms — No syntax errors
   ✓ pint 515ms — Pint: 1 file(s) follow the project style
@@ -32,7 +32,7 @@ app. It followed the change. The edited controller handles `GET /posts/{post}`, 
 
 While the demo app for this README was being written, the RSS view started with
 `<?xml version="1.0"?>`. That is valid XML, but Blade compiles it into PHP that doesn't parse.
-`semitexa:verify` flagged the view, the failing `FeedTest`, and the controller line that
+`ai:verify` flagged the view, the failing `FeedTest`, and the controller line that
 rendered it. The obvious "fix" was `{!! '<?xml … ?>' !!}`. It still failed, because the `?>`
 inside the string closes PHP mode in the compiled template. The run went green only after the
 real fix (`'<'.'?xml … ?'.'>'`). Without the check, an agent would most likely have reported that
@@ -56,7 +56,7 @@ than it sounds:
 - **Many Laravel failures never show up in a unit test.** A closure in `config/`, a broken
   `@forelse`, a typo in a migration, or a provider that no longer boots all slip past them.
 
-`semitexa:verify` handles all of this with one command and a fixed contract:
+`ai:verify` handles all of this with one command and a fixed contract:
 
 | It does | So that |
 |---|---|
@@ -84,30 +84,30 @@ Pest or PHPUnit is detected automatically.
 If you use **[Laravel Boost](https://github.com/laravel/boost)**, re-run `php artisan boost:install`
 and tick `semitexa/laravel-ai-verify` in the third-party list. In non-interactive runs, add it to
 `"packages"` in `boost.json`. The guideline goes into `CLAUDE.md`/`AGENTS.md`, and the
-`semitexa-verify` skill is installed for every agent that supports skills.
+`ai-verify` skill is installed for every agent that supports skills.
 
 Otherwise, add this to `CLAUDE.md`, `AGENTS.md` or `.cursor/rules`:
 
 ```markdown
 ## Verifying changes
-After every coherent change, run `php artisan semitexa:verify` and read the last line (`"kind":"verdict"`).
+After every coherent change, run `php artisan ai:verify` and read the last line (`"kind":"verdict"`).
 - `pass`: done. `fail`: fix the reported violations (path:line) and re-run.
 - `incomplete`: something could not be checked; read `unchecked_files` and the `incomplete` results. Never report this as done.
 - Never delete, skip or weaken a test to get a pass; if a test change is intentional, add `// verify:accept-test-change <reason>` to the file.
-Use `php artisan semitexa:graph <class|route|view>` to see what a class touches and which tests cover it before editing.
+Use `php artisan ai:graph <class|route|view>` to see what a class touches and which tests cover it before editing.
 ```
 
 ## Usage
 
 ```bash
-php artisan semitexa:verify                          # uncommitted work: staged, unstaged, untracked (default)
-php artisan semitexa:verify --git-ref=main           # everything since main, plus untracked files
-php artisan semitexa:verify --files=app/Models/Post.php,routes/web.php
-git diff --name-status HEAD~3 | php artisan semitexa:verify --diff-stdin
+php artisan ai:verify                          # uncommitted work: staged, unstaged, untracked (default)
+php artisan ai:verify --git-ref=main           # everything since main, plus untracked files
+php artisan ai:verify --files=app/Models/Post.php,routes/web.php
+git diff --name-status HEAD~3 | php artisan ai:verify --diff-stdin
 
-php artisan semitexa:verify --scope=minimal          # seconds: syntax, Blade, JSON, changed tests
-php artisan semitexa:verify --scope=broad            # every boot probe + the whole suite
-php artisan semitexa:verify --impact                 # add a blast-radius report from the graph
+php artisan ai:verify --scope=minimal          # seconds: syntax, Blade, JSON, changed tests
+php artisan ai:verify --scope=broad            # every boot probe + the whole suite
+php artisan ai:verify --impact                 # add a blast-radius report from the graph
 ```
 
 Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
@@ -150,7 +150,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.1.0"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.2.0"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}
@@ -179,16 +179,16 @@ terminal view.
 
 Files that no check read are always listed in `unchecked_files` and in the headline.
 
-## `semitexa:graph`: orientation before editing
+## `ai:graph`: orientation before editing
 
 The same graph that selects tests is available directly:
 
 ```bash
-php artisan semitexa:graph                                   # routes → actions, most-depended-on classes, code no test reaches
-php artisan semitexa:graph posts.show                        # a route's chain: controller@method, request, middleware, views, models, tables, policies, tests
-php artisan semitexa:graph "App\Models\Post"                 # what it uses, what uses it, which tests cover it
-php artisan semitexa:graph --impact=app/Models/Post.php      # blast radius + the tests to run
-php artisan semitexa:graph --json --full                     # every node and edge
+php artisan ai:graph                                   # routes → actions, most-depended-on classes, code no test reaches
+php artisan ai:graph posts.show                        # a route's chain: controller@method, request, middleware, views, models, tables, policies, tests
+php artisan ai:graph "App\Models\Post"                 # what it uses, what uses it, which tests cover it
+php artisan ai:graph --impact=app/Models/Post.php      # blast radius + the tests to run
+php artisan ai:graph --json --full                     # every node and edge
 ```
 
 ```text

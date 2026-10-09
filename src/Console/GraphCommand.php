@@ -11,15 +11,15 @@ use Semitexa\LaravelAiVerify\Toolkit;
 /**
  * Agent orientation over the project graph.
  *
- *   php artisan semitexa:graph                         # overview: counts, routes, hubs
- *   php artisan semitexa:graph /posts/{post}           # a route's full chain
- *   php artisan semitexa:graph "App\Models\Post"       # what a class uses / what uses it
- *   php artisan semitexa:graph --impact=app/Models/Post.php
- *   php artisan semitexa:graph --json --full           # the whole graph
+ *   php artisan ai:graph                         # overview: counts, routes, hubs
+ *   php artisan ai:graph /posts/{post}           # a route's full chain
+ *   php artisan ai:graph "App\Models\Post"       # what a class uses / what uses it
+ *   php artisan ai:graph --impact=app/Models/Post.php
+ *   php artisan ai:graph --json --full           # the whole graph
  */
 final class GraphCommand extends Command
 {
-    protected $signature = 'semitexa:graph
+    protected $signature = 'ai:graph
         {node? : Class FQCN or basename, file path, route URI or name, view name, or table}
         {--impact=* : Blast radius of these paths, with the tests that cover them}
         {--json : JSON output (default when stdout is not a terminal)}
@@ -208,7 +208,7 @@ final class GraphCommand extends Command
     {
         $s = $overview['stats'];
         $this->newLine();
-        $this->line('  <options=bold>semitexa:graph</> · '.$s['nodes'].' nodes · '.$s['edges'].' edges · '
+        $this->line('  <options=bold>ai:graph</> · '.$s['nodes'].' nodes · '.$s['edges'].' edges · '
             .($s['nodes.route'] ?? 0).' routes · '.($s['nodes.class'] ?? 0).' classes · '.($s['nodes.view'] ?? 0).' views · '.($s['nodes.test'] ?? 0).' tests');
         $this->newLine();
 
@@ -243,7 +243,7 @@ final class GraphCommand extends Command
             $this->line("  <fg=yellow>!</> {$warning}");
         }
 
-        $this->line('  <fg=gray>Next: php artisan semitexa:graph <class|route|view> · --impact=<path> · --json --full</>');
+        $this->line('  <fg=gray>Next: php artisan ai:graph <class|route|view> · --impact=<path> · --json --full</>');
         $this->newLine();
     }
 
