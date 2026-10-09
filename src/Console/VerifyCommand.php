@@ -7,6 +7,8 @@ namespace Semitexa\LaravelAiVerify\Console;
 use Illuminate\Console\Command;
 use RuntimeException;
 use Semitexa\LaravelAiVerify\Agents\AgentInstructions;
+use Semitexa\LaravelAiVerify\Receipts\Receipts;
+use Semitexa\LaravelAiVerify\Support\GitTree;
 use Semitexa\LaravelAiVerify\Toolkit;
 use Semitexa\LaravelAiVerify\Verify\ChangeCollector;
 use Semitexa\LaravelAiVerify\Verify\ChangedFile;
@@ -129,6 +131,12 @@ final class VerifyCommand extends Command
             }
         }
 
+        // What the receipt will vouch for: the state *before* any check ran.
+        $receipts = new Receipts($toolkit->workspace);
+        $git = new GitTree($toolkit->runner);
+        $filesBefore = $receipts->fingerprint(array_map(static fn ($f) => $f->path, $files));
+        $treeBefore = $git->working();
+
         $results = $toolkit->executor()->execute(
             $plan,
             fn (Target $target) => $this->mode === 'human' && $this->isTerminal() ? $this->output->write("  <fg=gray>…</> {$target->id}\r") : null,
@@ -138,6 +146,21 @@ final class VerifyCommand extends Command
         $report = new Report($plan, $files, $results, $impact);
         $restart = $report->restartHints($toolkit->workspace);
         $next = $report->nextCommands();
+
+        $receipt = $receipts->write([
+            'verdict' => $report->verdict,
+            'scope' => $plan->effectiveScope->value,
+            'source' => $source,
+            'counts' => $report->counts,
+            'results' => array_map(static fn (Result $r) => $r->toArray(), $results),
+        ], $filesBefore, $treeBefore, $git->head());
+        $receiptRef = $receipt === null ? null : array_filter([
+            'id' => $receipt['id'],
+            'path' => Receipts::DIR.'/'.$receipt['id'].'.json',
+            'tree' => $receipt['tree'],
+            'digest' => $receipt['digest'],
+            'changed_during_run' => $receipt['changed_during_run'] ?: null,
+        ], static fn ($v) => $v !== null);
 
         if ($this->mode === 'json') {
             $this->line((string) json_encode([
@@ -158,6 +181,7 @@ final class VerifyCommand extends Command
                 'impact' => $impact,
                 'restart' => $restart,
                 'next' => $next,
+                'receipt' => $receiptRef,
             ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
             return $report->exitCode();
@@ -169,6 +193,10 @@ final class VerifyCommand extends Command
 
         foreach ($next as $hint) {
             $this->emit(['kind' => 'next'] + $hint);
+        }
+
+        if ($receiptRef !== null) {
+            $this->emit(['kind' => 'receipt'] + $receiptRef);
         }
 
         $this->emit(['kind' => 'verdict', 'verdict' => $report->verdict, 'counts' => $report->counts,
@@ -275,6 +303,11 @@ final class VerifyCommand extends Command
 
             case 'restart':
                 $this->line("  <fg=yellow>↻</> <options=bold>{$event['cmd']}</> — {$event['why']}");
+                break;
+
+            case 'receipt':
+                $tree = isset($event['tree']) ? ' · tree '.substr((string) $event['tree'], 0, 10) : '';
+                $this->line("  <fg=gray>receipt {$event['id']}{$tree} — php artisan ai:verify:receipt</>");
                 break;
 
             case 'next':

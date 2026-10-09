@@ -12,6 +12,7 @@ use Semitexa\LaravelAiVerify\Console\GraphCommand;
 use Semitexa\LaravelAiVerify\Console\HookCommand;
 use Semitexa\LaravelAiVerify\Console\InstallCommand;
 use Semitexa\LaravelAiVerify\Console\MigrationProbeCommand;
+use Semitexa\LaravelAiVerify\Console\ReceiptCommand;
 use Semitexa\LaravelAiVerify\Console\VerifyCommand;
 use Semitexa\LaravelAiVerify\Support\Workspace;
 
@@ -37,6 +38,7 @@ final class AiVerifyServiceProvider extends ServiceProvider
             GraphCommand::class,
             InstallCommand::class,
             HookCommand::class,
+            ReceiptCommand::class,
             MigrationProbeCommand::class,
         ]);
 

@@ -85,7 +85,7 @@ final class CommandsTest extends TestCase
         $events = $this->ndjson('ai:verify', ['--files' => ['app/Models/Invoice.php'], '--scope' => 'minimal', '--ndjson' => true]);
         $kinds = array_values(array_unique(array_column($events, 'kind')));
 
-        $this->assertSame(['summary', 'file', 'target', 'result', 'next', 'verdict', 'exit'], $kinds);
+        $this->assertSame(['summary', 'file', 'target', 'result', 'next', 'receipt', 'verdict', 'exit'], $kinds);
         $this->assertSame('pass', $this->first($events, 'verdict')['verdict']);
         $this->assertSame('model', $this->first($events, 'file')['file_kind']);
     }
