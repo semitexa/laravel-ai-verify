@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 — 2026-10-09
+
+- Docs and metadata only: `ai:graph` gets its place in the description, keywords and README. The README hero now presents it as a code graph for agents, and two FAQ entries cover mapping a Laravel codebase for an AI agent and impact analysis.
+
 ## 0.4.0 — 2026-10-09
 
 - **Receipts** (ported from Semitexa).

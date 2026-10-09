@@ -12,7 +12,11 @@ It runs only the tests, Larastan, Pint and Laravel boot checks the diff actually
 the change if the agent deleted, skipped or weakened a test to get green. It returns one verdict the
 agent must act on: `pass`, `fail` or `incomplete`. One more command writes the instructions into
 `AGENTS.md` and `CLAUDE.md`. For Claude Code it also adds a Stop hook, so the agent cannot finish
-while verification fails.
+while verification fails. Verified commits get a trailer that CI can check.
+
+Before the agent edits anything, **`php artisan ai:graph`** gives it a **code graph of the Laravel
+app**. It covers routes → controllers → form requests → models → tables → policies → views → tests,
+and events → listeners. It also does impact analysis: what a change affects and which tests cover it.
 
 ```bash
 composer require --dev semitexa/laravel-ai-verify
@@ -202,7 +206,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.4.0"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.4.1"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}
@@ -294,7 +298,7 @@ The ready-made GitHub Action, [semitexa/laravel-ai-verify-action](https://github
 can write `storage/` can rewrite both. What a receipt adds is that "verified" names something
 specific. It can be checked against a commit, inspected, and re-run, and CI re-runs it anyway.
 
-## `ai:graph`: orientation before editing
+## `ai:graph`: a code graph of your Laravel app, for agents
 
 The same graph that selects tests is available directly:
 
@@ -407,6 +411,27 @@ to your own rules and Laravel Boost's.
 to just list them). Tests are selected through a project graph: tests that reference a changed
 class, request a route its controller handles, render a view it touches, or use its factory. It
 needs no coverage driver and no recorded baseline, unlike coverage-based test impact analysis.
+
+### How do I give an AI agent a map of my Laravel codebase?
+
+`php artisan ai:graph` builds a code graph from your app. It reads the code statically, and it asks
+the booted app for routes, listeners, model tables and policies. Agents call it with `--json`
+(the default when output isn't a terminal):
+
+- `ai:graph posts.show`: the whole route chain: controller@method, FormRequest, middleware, views, models with their tables and policies, and the tests that hit it.
+- `ai:graph "App\Models\Post"`: what the class uses, what uses it, and which tests reach it.
+- `ai:graph`: every route and its action, the most depended-on classes, and code that no test reaches.
+
+It gives the agent the same picture a senior Laravel developer has in their head, so it doesn't
+have to grep and guess, especially around implicit wiring like route-model binding, event
+listeners and policies.
+
+### What will this change break? (impact analysis for Laravel)
+
+`php artisan ai:graph --impact=app/Models/Post.php` walks the graph backwards from the file. It
+reports dependent classes, affected routes and the tests that cover them, with a low/medium/high
+blast-radius band. `ai:verify --impact` adds the same report to a verification run, and
+`ai:verify` uses the graph anyway to pick which tests to run.
 
 ### Does it replace AI code review?
 

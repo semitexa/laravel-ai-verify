@@ -1,6 +1,6 @@
 {
     "name": "semitexa/laravel-ai-verify",
-    "description": "Stop AI coding agents from faking \"done\" in Laravel. One Artisan command verifies Claude Code, Cursor and Codex changes: only the tests, Larastan, Pint and Laravel checks the diff needs, a guard against deleted or skipped tests, AGENTS.md/CLAUDE.md setup and a Claude Code hook.",
+    "description": "Stop AI coding agents from faking \"done\" in Laravel. ai:verify runs only the tests, Larastan, Pint and Laravel checks a diff needs, fails on deleted or skipped tests, and stamps verified commits for CI. ai:graph gives agents a code graph of routes, controllers, models, views and tests, with impact analysis.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -28,7 +28,13 @@
         "affected-tests",
         "code-graph",
         "laravel-boost",
-        "semitexa"
+        "semitexa",
+        "codebase-map",
+        "dependency-graph",
+        "impact-analysis",
+        "route-map",
+        "github-actions",
+        "ci"
     ],
     "homepage": "https://semitexa.com",
     "support": {
