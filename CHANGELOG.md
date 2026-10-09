@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2 — 2026-10-09
+
+- The GitHub Action now lives in this repository: `uses: semitexa/laravel-ai-verify@v0.4.2`. `semitexa/laravel-ai-verify-action` is archived. `action.yml` is excluded from the Composer package.
+
 ## 0.4.1 — 2026-10-09
 
 - Docs and metadata only: `ai:graph` gets its place in the description, keywords and README. The README hero now presents it as a code graph for agents, and two FAQ entries cover mapping a Laravel codebase for an AI agent and impact analysis.

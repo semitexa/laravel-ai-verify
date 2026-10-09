@@ -1,0 +1,118 @@
+name: 'Laravel AI Verify'
+description: 'Fail Laravel PRs whose AI-written commits were not verified: checks AI-Verify receipts and re-runs ai:verify on the diff, with annotations.'
+author: 'Semitexa'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  mode:
+    description: '`receipts` (check AI-Verify commit trailers), `verify` (re-run php artisan ai:verify on the diff), or `both`.'
+    default: 'both'
+  require:
+    description: 'Which commits must carry a valid AI-Verify trailer: `ai` (co-authored by an AI agent), `all`, or `none` (report only).'
+    default: 'ai'
+  scope:
+    description: 'ai:verify scope for the re-run: minimal, standard or broad.'
+    default: 'standard'
+  base:
+    description: 'Base commit to compare against. Defaults to the PR base, or the previous commit of a push.'
+    default: ''
+  working-directory:
+    description: 'Directory of the Laravel app (where artisan lives).'
+    default: '.'
+
+outputs:
+  receipts:
+    description: 'Result of the receipts check: ok, failed or skipped.'
+    value: ${{ steps.receipts.outputs.result }}
+  verdict:
+    description: 'ai:verify verdict of the re-run: pass, fail, incomplete, skipped or not-run.'
+    value: ${{ steps.verify.outputs.verdict }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Resolve base
+      id: base
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_BASE: ${{ inputs.base }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+      run: |
+        set -euo pipefail
+        if [ ! -f artisan ]; then
+          echo "::error title=Laravel AI Verify::No artisan in '$(pwd)'. Set working-directory to your Laravel app."
+          exit 1
+        fi
+        if ! php artisan list --raw 2>/dev/null | grep -q '^ai:verify:receipt'; then
+          echo "::error title=Laravel AI Verify::semitexa/laravel-ai-verify >= 0.4 is not installed. Run composer install first (composer require --dev semitexa/laravel-ai-verify)."
+          exit 1
+        fi
+        base="${INPUT_BASE:-${PR_BASE:-}}"
+        if [ -z "$base" ] && [ -n "${PUSH_BEFORE:-}" ] && [ "${PUSH_BEFORE}" != "0000000000000000000000000000000000000000" ]; then
+          base="$PUSH_BEFORE"
+        fi
+        if [ -z "$base" ]; then
+          base="$(git rev-parse HEAD~1 2>/dev/null || true)"
+        fi
+        if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+          echo "::error title=Laravel AI Verify::Base commit '${base:-?}' is not available. Use actions/checkout with fetch-depth: 0."
+          exit 1
+        fi
+        echo "base=$base" >> "$GITHUB_OUTPUT"
+        echo "Comparing against $base"
+
+    - name: Check AI-Verify receipts
+      id: receipts
+      if: inputs.mode == 'receipts' || inputs.mode == 'both'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASE: ${{ steps.base.outputs.base }}
+        REQUIRE: ${{ inputs.require }}
+      run: |
+        set +e
+        php artisan ai:verify:receipt --range="${BASE}..HEAD" --require="$REQUIRE" --github --no-ansi
+        code=$?
+        if [ $code -eq 0 ]; then echo "result=ok" >> "$GITHUB_OUTPUT"; else echo "result=failed" >> "$GITHUB_OUTPUT"; fi
+        exit 0
+
+    - name: Re-run ai:verify on the diff
+      id: verify
+      if: inputs.mode == 'verify' || inputs.mode == 'both'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASE: ${{ steps.base.outputs.base }}
+        SCOPE: ${{ inputs.scope }}
+      run: |
+        set +e
+        php artisan ai:verify --git-ref="$BASE" --scope="$SCOPE" --github --no-ansi
+        code=$?
+        if [ $code -eq 0 ]; then
+          verdict=pass
+        else
+          # fail or incomplete, from the receipt the run just wrote; anything else is an error
+          verdict=$(php artisan ai:verify:receipt --json 2>/dev/null | php -r '$r = json_decode(stream_get_contents(STDIN), true); echo $r["verdict"] ?? "";')
+          case "$verdict" in fail|incomplete) ;; *) verdict=error ;; esac
+        fi
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Result
+      shell: bash
+      env:
+        RECEIPTS: ${{ steps.receipts.outputs.result || 'skipped' }}
+        VERDICT: ${{ steps.verify.outputs.verdict || 'not-run' }}
+      run: |
+        echo "receipts: $RECEIPTS · ai:verify: $VERDICT"
+        failed=0
+        if [ "$RECEIPTS" = "failed" ]; then echo "::error title=Laravel AI Verify::Commits without a valid AI-Verify trailer (see the job summary)."; failed=1; fi
+        case "$VERDICT" in
+          pass|skipped|not-run) ;;
+          *) echo "::error title=Laravel AI Verify::ai:verify verdict: $VERDICT"; failed=1 ;;
+        esac
+        exit $failed

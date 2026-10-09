@@ -206,7 +206,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.4.1"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.4.2"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}
@@ -292,7 +292,48 @@ php artisan ai:verify --git-ref=origin/main --github
 - **Re-verify.** `ai:verify --github` re-runs the checks on the PR diff. Every violation becomes an
   annotation on the diff line, and the job summary gets the check table.
 
-The ready-made GitHub Action, [semitexa/laravel-ai-verify-action](https://github.com/semitexa/laravel-ai-verify-action), does both.
+### GitHub Action
+
+This repository is also a GitHub Action that runs both checks on every pull request:
+
+```yaml
+# .github/workflows/ai-verify.yml
+name: ai-verify
+
+on:
+  pull_request:
+
+jobs:
+  ai-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the receipts check reads every commit in the PR
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: cp .env.example .env && php artisan key:generate
+
+      - uses: semitexa/laravel-ai-verify@v0.4.2
+        with:
+          require: ai             # commits co-authored by an AI agent must be verified
+```
+
+| Input | Default | |
+|---|---|---|
+| `mode` | `both` | `receipts`, `verify`, or `both` |
+| `require` | `ai` | Which commits must carry a valid trailer: `ai` (co-authored by an AI agent), `all`, or `none` (report only) |
+| `scope` | `standard` | `ai:verify` scope for the re-run |
+| `base` | PR base | Commit to compare against |
+| `working-directory` | `.` | Where `artisan` lives |
+
+Outputs: `receipts` (`ok` / `failed` / `skipped`) and `verdict` (`pass` / `fail` / `incomplete` / `error` / `not-run`).
+Each violation becomes an annotation on the PR diff, and the job summary gets one table with both checks.
 
 **What a receipt is and isn't.** The digest catches an edited receipt, not a forged one: whoever
 can write `storage/` can rewrite both. What a receipt adds is that "verified" names something
