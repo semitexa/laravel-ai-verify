@@ -1,0 +1,68 @@
+{
+    "name": "semitexa/laravel-ai-verify",
+    "description": "Diff-aware verification for AI coding agents in Laravel: one Artisan command plans and runs the minimal relevant checks for a change set and returns a machine-readable verdict. A port of Semitexa's ai:verify.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "ai",
+        "agents",
+        "claude-code",
+        "cursor",
+        "codex",
+        "verification",
+        "testing",
+        "diff",
+        "impact-analysis",
+        "code-graph",
+        "semitexa"
+    ],
+    "homepage": "https://semitexa.com",
+    "support": {
+        "issues": "https://github.com/semitexa/laravel-ai-verify/issues",
+        "source": "https://github.com/semitexa/laravel-ai-verify"
+    },
+    "authors": [
+        {
+            "name": "Semitexa",
+            "email": "support@semitexa.com",
+            "homepage": "https://semitexa.com"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/console": "^12.0|^13.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "symfony/process": "^7.2|^8.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpunit/phpunit": "^11.5|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Semitexa\\LaravelAiVerify\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Semitexa\\LaravelAiVerify\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Semitexa\\LaravelAiVerify\\AiVerifyServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
