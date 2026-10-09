@@ -7,5 +7,7 @@
     - `incomplete`: something could not be verified. Read `unchecked_files` and the `incomplete` results. Do not report the task as done.
 - Violations marked `severity: warning` or `pre-existing` were already in the code before the change. They do not fail the run.
 - Never delete, skip or weaken a test to get a `pass`; the test-integrity check fails it. If a test change is intentional, add `// verify:accept-test-change <reason>` to the test file.
+- Every run writes a receipt (the `receipt` event). Before you say a change is verified, `php artisan ai:verify:receipt` must report `holds`: the run passed and nothing changed since.
+- Commit exactly the state you verified (`git add -A` after a pass). Verified commits get an `AI-Verify:` trailer that CI checks against the commit's tree. If you edit anything after verifying, verify again. To stamp a commit you already made, run `php artisan ai:verify --git-ref=HEAD~1`, then `git commit --amend --no-edit`.
 - `restart` events list commands such as `queue:restart` that are needed before running workers see the change.
 - Before editing unfamiliar code, run `php artisan ai:graph <Class|route-name|/uri|view.name>` to see what it touches and which tests cover it. `--impact=<path>` shows the blast radius of a change.

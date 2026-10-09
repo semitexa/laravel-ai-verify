@@ -14,6 +14,13 @@ description: Verify a Laravel change before calling it done, and orient in an un
 5. On `incomplete`, don't claim success. Check `unchecked_files` (nothing read those files) and any `result` with `status: incomplete` (timeout, crash, or a required tool missing). Fix the cause, or tell the user exactly what could not be verified.
 6. On `pass`, follow any `restart` hints (`queue:restart`, `octane:reload`, `config:clear`) before testing in a browser.
 
+## Receipts and commits
+
+- Every run writes a receipt (`{"kind":"receipt","id":"rcpt-…"}`). `php artisan ai:verify:receipt` shows whether it still **holds**: it is intact, the verdict was `pass`, and nothing changed since. Check it before claiming the work is verified.
+- Commit exactly what you verified: `git add -A` after a passing run. With the git hook installed (`ai:verify:install --git-hook`), the commit gets an `AI-Verify: pass rcpt-… tree=…` trailer, and CI compares that tree with the commit's own.
+- If the hook prints `no AI-Verify trailer — this commit is not the state … verified`, it lists the files that differ. Stage them, or re-run `ai:verify` on what you commit.
+- To stamp a commit you already made: `php artisan ai:verify --git-ref=HEAD~1`, then `git commit --amend --no-edit`.
+
 ## Choosing the input
 
 | Situation | Command |

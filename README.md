@@ -103,6 +103,7 @@ An agent only uses a tool it knows about. One command puts the instructions wher
 ```bash
 php artisan ai:verify:install          # AGENTS.md + CLAUDE.md, the files of agents you already use, and skills
 php artisan ai:verify:install --hook   # also: Claude Code may not finish while ai:verify fails
+php artisan ai:verify:install --git-hook   # also: verified commits get an AI-Verify trailer CI can check
 ```
 
 ```text
@@ -201,7 +202,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.3.4"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.4.0"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}
@@ -229,6 +230,69 @@ terminal view.
    (for example, only a README changed), `pass` is downgraded to `incomplete`.
 
 Files that no check read are always listed in `unchecked_files` and in the headline.
+
+## Receipts: "verified" you can check
+
+Each `ai:verify` run writes a **receipt**. A receipt records:
+- the verdict;
+- every check with its exit code and a hash of its output;
+- a sha256 of every changed file, taken before the checks ran;
+- any file that changed *while* the checks ran;
+- the **git tree id** of the working state, which is exactly the tree a commit gets if this state is committed as is;
+- a digest over all of the above.
+
+```bash
+php artisan ai:verify:receipt              # does the latest receipt hold? intact, a pass, nothing changed since
+php artisan ai:verify:receipt --unread     # runs whose outcome nobody looked at (an agent saw red, said green)
+```
+
+### The commit trailer
+
+With `php artisan ai:verify:install --git-hook`, a `prepare-commit-msg` hook stamps every commit
+that a passing receipt covers *exactly*:
+
+```text
+Add contact form
+
+AI-Verify: pass rcpt-20261009-135339-fc72aa tree=feabaa96559… scope=standard checks=4
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+- **Any agent, any person.** It works for every agent and every person who commits. Git runs
+  this hook even with `--no-verify`. `core.hooksPath` (Husky, lefthook) is respected.
+- **Exact match only.** If the commit isn't exactly what was verified, for example a new file left
+  unstaged or an edit after the run, there is no trailer. The hook says why on stderr:
+
+  ```text
+  ai-verify: no AI-Verify trailer — this commit is not the state rcpt-… verified:
+    verified but not in this commit: app/Support/Slug.php
+    Stage everything that was verified (git add -A), or re-run php artisan ai:verify on what you commit.
+  ```
+
+- **Amend after verifying.** An amended commit that changed after verification loses its old
+  trailer instead of carrying it.
+- **Stamp an existing commit.** Run `php artisan ai:verify --git-ref=HEAD~1`, then
+  `git commit --amend --no-edit`.
+
+### In CI
+
+```bash
+php artisan ai:verify:receipt --range=origin/main..HEAD --require=ai --github
+php artisan ai:verify --git-ref=origin/main --github
+```
+
+- **Receipt check.** `--range` checks every commit's trailer against **that commit's own tree**,
+  with three outcomes: `verified`, `stale` (changed after verification) or `missing`. `--require`
+  decides which commits must be verified: `ai` (commits co-authored by Claude, Codex, Copilot,
+  Cursor, Gemini, …), `all`, or `none`.
+- **Re-verify.** `ai:verify --github` re-runs the checks on the PR diff. Every violation becomes an
+  annotation on the diff line, and the job summary gets the check table.
+
+The ready-made GitHub Action, [semitexa/laravel-ai-verify-action](https://github.com/semitexa/laravel-ai-verify-action), does both.
+
+**What a receipt is and isn't.** The digest catches an edited receipt, not a forged one: whoever
+can write `storage/` can rewrite both. What a receipt adds is that "verified" names something
+specific. It can be checked against a commit, inspected, and re-run, and CI re-runs it anyway.
 
 ## `ai:graph`: orientation before editing
 

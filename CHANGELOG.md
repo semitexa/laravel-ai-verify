@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — 2026-10-09
+
+- **Receipts** (ported from Semitexa).
+  - Every `ai:verify` run writes a receipt to `storage/ai-verify/receipts/`. It holds the verdict, hashes of each check, a sha256 per changed file, files that changed while the checks ran, the git tree id of the working state, and a digest.
+  - `ai:verify:receipt` checks whether a receipt still holds. `--unread` lists runs nobody looked at.
+- **Commit trailer.** `ai:verify:install --git-hook` adds a `prepare-commit-msg` hook. It adds `AI-Verify: pass rcpt-… tree=…` when a passing receipt covers exactly the committed tree. Otherwise it explains on stderr why there is no trailer, and it drops stale trailers on amend.
+- **CI.**
+  - `ai:verify:receipt --range=… --require=ai|all|none --github` checks each commit's trailer against its own tree.
+  - `ai:verify --github` turns violations into PR diff annotations and writes a job summary.
+  - GitHub Action: [semitexa/laravel-ai-verify-action](https://github.com/semitexa/laravel-ai-verify-action).
+
 ## 0.3.4 — 2026-10-09
 
 - Route-name check: names a file guards with `Route::has('…')` are no longer reported, as in Laravel's default `welcome.blade.php` (`@if (Route::has('login'))`). An end-to-end agent run flagged these as false positives.
