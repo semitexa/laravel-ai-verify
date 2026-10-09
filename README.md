@@ -1,10 +1,27 @@
-# Laravel AI Verify
+# Laravel AI Verify: stop AI agents from faking "done"
 
-**One Artisan command that tells an AI coding agent whether its change actually works.**
+[![Tests](https://github.com/semitexa/laravel-ai-verify/actions/workflows/tests.yml/badge.svg)](https://github.com/semitexa/laravel-ai-verify/actions/workflows/tests.yml)
+[![Latest Version](https://img.shields.io/packagist/v/semitexa/laravel-ai-verify.svg)](https://packagist.org/packages/semitexa/laravel-ai-verify)
+[![PHP](https://img.shields.io/packagist/php-v/semitexa/laravel-ai-verify.svg)](https://packagist.org/packages/semitexa/laravel-ai-verify)
+[![License](https://img.shields.io/packagist/l/semitexa/laravel-ai-verify.svg)](LICENSE)
 
-`ai:verify` reads what changed (uncommitted work, a git ref, or a file list), works out the
-smallest set of checks that can vouch for that change, runs them with timeouts, and returns one
-verdict: `pass`, `fail` or `incomplete`. The verdict comes as streamed NDJSON, a JSON envelope or terminal text.
+**AI code verification for Laravel.** Claude Code, Cursor, Codex, Copilot or Gemini says the
+change is done. `php artisan ai:verify` checks whether it is.
+
+It runs only the tests, Larastan, Pint and Laravel boot checks the diff actually needs. It fails
+the change if the agent deleted, skipped or weakened a test to get green. It returns one verdict the
+agent must act on: `pass`, `fail` or `incomplete`. One more command writes the instructions into
+`AGENTS.md` and `CLAUDE.md`. For Claude Code it also adds a Stop hook, so the agent cannot finish
+while verification fails.
+
+```bash
+composer require --dev semitexa/laravel-ai-verify
+php artisan ai:verify:install --hook
+```
+
+How it works: `ai:verify` reads what changed (uncommitted work, a git ref, or a file list). It
+works out the smallest set of checks that can vouch for that change and runs them with timeouts.
+The verdict comes as streamed NDJSON for agents, a JSON envelope or terminal text.
 
 ```text
 $ php artisan ai:verify
@@ -292,6 +309,57 @@ return [
 | **Pest `--tia`** | Coverage-based test selection | A different trade-off: the graph needs no coverage driver and no baseline. |
 | **laravel/pao** | Compresses tool output for agents | Bypassed for child processes, so the structured reports stay parseable. |
 | **Larastan, Pint** | Static analysis and code style | Run on the changed files only. Only problems introduced by the change fail the run. |
+
+## FAQ
+
+### How do I stop Claude Code (or Cursor, Codex) from saying "done" when the tests fail?
+
+Rules in `CLAUDE.md` or `AGENTS.md` help, but agents don't always follow them. Run
+`php artisan ai:verify:install --hook`. The rules go into the instruction files, and Claude Code
+gets a Stop hook: when the agent tries to finish, `ai:verify` checks the uncommitted work, and on
+`fail` Claude is sent back with the violations. Other agents get the same rules and the same
+command to run.
+
+### How do I stop an AI agent from deleting, skipping or weakening tests to make them pass?
+
+Agents sometimes make a red suite green by editing the tests instead of the code. Researchers call
+this "reward hacking". Every changed test file is compared with the base ref. The run fails when it
+loses tests or assertions, or gains `skip()`, `todo()`, `only()` or `markTestSkipped`. Commenting
+out an assertion counts as removing it. If a test change is genuinely intended, the agent has to
+say so explicitly with `// verify:accept-test-change <reason>`, which shows up in review.
+
+### What should go in AGENTS.md / CLAUDE.md for a Laravel project?
+
+At minimum, the agent needs to know how to verify its work and what not to do to pass. See
+[the guideline this package installs](resources/boost/guidelines/core.blade.php). Run
+`php artisan ai:verify:install` and it is written into `AGENTS.md` and `CLAUDE.md`, and into
+`GEMINI.md`, Copilot, Junie, Cursor and Windsurf files if you use them, as an idempotent block next
+to your own rules and Laravel Boost's.
+
+### How do I run only the tests affected by a change in Laravel?
+
+`php artisan ai:verify --git-ref=main` (or `php artisan ai:graph --impact=app/Models/Post.php`
+to just list them). Tests are selected through a project graph: tests that reference a changed
+class, request a route its controller handles, render a view it touches, or use its factory. It
+needs no coverage driver and no recorded baseline, unlike coverage-based test impact analysis.
+
+### Does it replace AI code review?
+
+No. It checks things a reviewer shouldn't have to: the code parses, the views compile, the app
+boots, migrations run, static analysis and style are clean on the changed lines, the related tests
+pass, and the tests weren't tampered with. Review time then goes on design and intent, and
+"it doesn't even run" is off the table.
+
+### Larastan and Pint fail on my legacy code. Will the agent drown in errors?
+
+No. Only problems on the lines this change touched fail the run. PHPStan errors elsewhere in the
+touched files, and Pint fixers the file already needed, are reported as `pre-existing` warnings.
+
+### Does it work with Laravel Boost, Pest 4/5, PHPUnit, Octane, Horizon?
+
+Yes. It ships a Boost guideline and skill. It runs Pest or PHPUnit and reads their JUnit output.
+After a change it tells the agent when to run `queue:restart`, `horizon:terminate` or
+`octane:reload`.
 
 ## Where it comes from
 

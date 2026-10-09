@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 — 2026-10-09
+
+- Docs only: README hero, badges and FAQ. The FAQ covers agents that report "done" while tests fail, deleted or skipped tests, AGENTS.md/CLAUDE.md setup for Laravel, and running only affected tests.
+- Package description and keywords rewritten around these problems.
+
 ## 0.3.0 — 2026-10-09
 
 - `ai:verify:install` writes the verify instructions where agents read them:
