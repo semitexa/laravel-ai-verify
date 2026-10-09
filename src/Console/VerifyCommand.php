@@ -6,6 +6,7 @@ namespace Semitexa\LaravelAiVerify\Console;
 
 use Illuminate\Console\Command;
 use RuntimeException;
+use Semitexa\LaravelAiVerify\Agents\AgentInstructions;
 use Semitexa\LaravelAiVerify\Toolkit;
 use Semitexa\LaravelAiVerify\Verify\ChangeCollector;
 use Semitexa\LaravelAiVerify\Verify\ChangedFile;
@@ -173,6 +174,8 @@ final class VerifyCommand extends Command
         $this->emit(['kind' => 'verdict', 'verdict' => $report->verdict, 'counts' => $report->counts,
             'headline' => $report->headline, 'unchecked_files' => $report->uncheckedFiles]);
 
+        $this->suggestInstall($toolkit);
+
         return $report->exitCode();
     }
 
@@ -328,6 +331,21 @@ final class VerifyCommand extends Command
 
         if (count($result->violations) > 10) {
             $this->line('      <fg=gray>… '.(count($result->violations) - 10).' more (use --json)</>');
+        }
+    }
+
+    /** People try the command first; make sure their agents learn about it too. */
+    private function suggestInstall(Toolkit $toolkit): void
+    {
+        if ($this->mode !== 'human') {
+            return;
+        }
+
+        $agents = new AgentInstructions($toolkit->workspace, dirname(__DIR__, 2).'/resources');
+
+        if (! $agents->installed() && ! $agents->managedByBoost()) {
+            $this->line('  <fg=yellow>Tip:</> your agents don\'t know about this command yet — <options=bold>php artisan ai:verify:install</> adds it to CLAUDE.md / AGENTS.md (--hook for Claude Code).');
+            $this->newLine();
         }
     }
 
