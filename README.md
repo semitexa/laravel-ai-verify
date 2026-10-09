@@ -201,7 +201,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.3.2"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.3.3"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}

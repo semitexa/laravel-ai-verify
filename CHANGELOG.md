@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3 — 2026-10-09
+
+- Stop hook: the "already verified this tree" cache now depends on the base commit, the package version and the config, not only on the uncommitted diff. Before, the same diff re-applied on a new commit reused a stale `pass`, and so did a package upgrade that added checks.
+- Stop hook: it no longer waits on an open but empty stdin.
+
 ## 0.3.2 — 2026-10-09
 
 - New check for references to route names that no longer exist: `route()`, `to_route()`, `redirect()->route()`, `URL::route()`, `redirectToRoute()`, `assertRedirectToRoute()`. It runs with the routes probe and reports `path:line` for each one.

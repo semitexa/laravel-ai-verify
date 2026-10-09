@@ -103,7 +103,10 @@ final class HookCommand extends Command
         return implode("\n", $lines);
     }
 
-    /** Hash of the uncommitted state: paths, statuses and content. Null when there is nothing to verify. */
+    /**
+     * Hash of what a verdict depends on: base commit, package version, config,
+     * and the uncommitted paths, statuses and content. Null when there is nothing to verify.
+     */
     private function fingerprint(Toolkit $toolkit): ?string
     {
         $status = $toolkit->runner->run(['git', 'status', '--porcelain=v1', '-z', '--untracked-files=all']);
@@ -113,7 +116,10 @@ final class HookCommand extends Command
         }
 
         $diff = $toolkit->runner->run(['git', 'diff', 'HEAD', '--no-color', '--no-ext-diff']);
+        $head = $toolkit->runner->run(['git', 'rev-parse', 'HEAD']);
         $hash = hash_init('sha256');
+        // A cached verdict is only valid for the same base commit, the same checks and the same config.
+        hash_update($hash, trim($head->stdout).'|'.Toolkit::VERSION.'|'.json_encode($toolkit->config));
         hash_update($hash, $status->stdout);
         hash_update($hash, $diff->stdout);
 
@@ -135,6 +141,14 @@ final class HookCommand extends Command
     private function stdinJson(): array
     {
         if (function_exists('stream_isatty') && @stream_isatty(STDIN)) {
+            return [];
+        }
+
+        // Claude Code writes the payload and closes stdin at once; never hang on an open, silent stdin.
+        $read = [STDIN];
+        $none = null;
+
+        if (@stream_select($read, $none, $none, 2) !== 1) {
             return [];
         }
 
