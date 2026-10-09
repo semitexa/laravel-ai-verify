@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3 — 2026-10-09
+
+- The `action.yml` description is now under GitHub Marketplace's 125-character limit, so the Action can be listed there. Use `uses: semitexa/laravel-ai-verify@v0.4.3`.
+
 ## 0.4.2 — 2026-10-09
 
 - The GitHub Action now lives in this repository: `uses: semitexa/laravel-ai-verify@v0.4.2`. `semitexa/laravel-ai-verify-action` is archived. `action.yml` stays in the source archive: GitHub downloads an Action as that archive, so excluding it with `export-ignore` would hide it from GitHub.

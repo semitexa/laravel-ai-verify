@@ -1,5 +1,5 @@
 name: 'Laravel AI Verify'
-description: 'Fail Laravel PRs whose AI-written commits were not verified: checks AI-Verify receipts and re-runs ai:verify on the diff, with annotations.'
+description: "Fail Laravel PRs whose AI agent commits weren't verified: checks AI-Verify receipts, re-runs ai:verify with annotations."
 author: 'Semitexa'
 branding:
   icon: 'check-circle'
