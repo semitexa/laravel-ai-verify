@@ -7,6 +7,8 @@ namespace Semitexa\LaravelAiVerify\Console;
 use Illuminate\Console\Command;
 use Semitexa\LaravelAiVerify\Agents\AgentInstructions;
 use Semitexa\LaravelAiVerify\Agents\ClaudeHook;
+use Semitexa\LaravelAiVerify\Agents\GitCommitHook;
+use Semitexa\LaravelAiVerify\Support\ProcessRunner;
 use Semitexa\LaravelAiVerify\Support\Workspace;
 
 /**
@@ -14,6 +16,7 @@ use Semitexa\LaravelAiVerify\Support\Workspace;
  *
  *   php artisan ai:verify:install             # AGENTS.md, CLAUDE.md, + files of agents already in use, + skills
  *   php artisan ai:verify:install --hook      # also stop Claude Code from finishing while ai:verify fails
+ *   php artisan ai:verify:install --git-hook  # also add the AI-Verify trailer to verified commits (any agent, any human)
  *   php artisan ai:verify:install --all       # create files for every supported agent
  *   php artisan ai:verify:install --remove    # take it all out again
  */
@@ -21,8 +24,9 @@ final class InstallCommand extends Command
 {
     protected $signature = 'ai:verify:install
         {--hook : Also add a Claude Code Stop hook that runs ai:verify before the agent may finish}
+        {--git-hook : Also add a prepare-commit-msg git hook that adds the AI-Verify trailer to verified commits}
         {--all : Create instruction files for every supported agent, not only the ones the project already uses}
-        {--remove : Remove the instructions, skills and hook}
+        {--remove : Remove the instructions, skills and hooks}
         {--force : Write the instructions even when Laravel Boost already ships them}
         {--dry-run : Show what would change without writing}';
 
@@ -35,6 +39,8 @@ final class InstallCommand extends Command
         $hook = new ClaudeHook($workspace);
         $remove = (bool) $this->option('remove');
         $withHook = (bool) $this->option('hook') || ($remove && $hook->installed());
+        $gitHook = new GitCommitHook($workspace, new ProcessRunner($workspace->basePath));
+        $withGitHook = (bool) $this->option('git-hook') || ($remove && $gitHook->installed());
         $dryRun = (bool) $this->option('dry-run');
 
         $this->newLine();
@@ -62,6 +68,15 @@ final class InstallCommand extends Command
             ));
         }
 
+        if ($withGitHook) {
+            $this->line(sprintf(
+                '  <fg=%s>%-9s</> %s <fg=gray>— git prepare-commit-msg hook: AI-Verify trailer on verified commits</>',
+                $remove ? 'yellow' : 'green',
+                $remove ? $gitHook->planRemove() : $gitHook->planInstall(),
+                $workspace->relative((string) $gitHook->path()),
+            ));
+        }
+
         if ($dryRun) {
             $this->newLine();
             $this->line('  <fg=gray>Dry run — nothing written.</>');
@@ -76,6 +91,10 @@ final class InstallCommand extends Command
             $remove ? $hook->remove() : $hook->install();
         }
 
+        if ($withGitHook) {
+            $remove ? $gitHook->remove() : $gitHook->install();
+        }
+
         $this->newLine();
 
         if (! $remove) {
@@ -83,6 +102,10 @@ final class InstallCommand extends Command
 
             if (! $withHook) {
                 $this->line('  <fg=gray>Using Claude Code? Add --hook to make it non-optional: Claude cannot finish while verify fails.</>');
+            }
+
+            if (! $withGitHook) {
+                $this->line('  <fg=gray>Add --git-hook to stamp verified commits with an AI-Verify trailer that CI can check.</>');
             }
 
             $this->line('  <fg=gray>Commit these files so every teammate\'s agent gets them.</>');

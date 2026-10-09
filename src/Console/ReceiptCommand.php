@@ -113,12 +113,18 @@ final class ReceiptCommand extends Command
     {
         $tree = $this->git->staged();
         $receipt = $tree !== null ? $this->receipts->forTree($tree) : null;
+        $file = $this->option('message-file');
 
         if ($receipt === null) {
+            // An amended commit keeps its old message: a trailer for a different tree must not ride along.
+            if (is_string($file) && is_file($file) && ($old = Trailer::parse((string) file_get_contents($file))) !== null && $old['tree'] !== $tree) {
+                file_put_contents($file, (string) preg_replace('/^'.Trailer::KEY.':.*\R?/m', '', (string) file_get_contents($file)));
+            }
+
+            $this->explainMissingTrailer($tree);
+
             return self::SUCCESS;
         }
-
-        $file = $this->option('message-file');
 
         if (is_string($file) && $file !== '') {
             $this->toolkit->runner->run(['git', 'interpret-trailers', '--in-place', '--if-exists', 'replace', '--trailer', Trailer::line($receipt), $file]);
@@ -130,6 +136,41 @@ final class ReceiptCommand extends Command
         $this->line(Trailer::line($receipt));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Say on stderr why a recent passing run does not cover this commit, so the
+     * committer (usually an agent) can fix it instead of wondering.
+     */
+    private function explainMissingTrailer(?string $staged): void
+    {
+        $latest = $this->receipts->find();
+
+        if ($staged === null || $latest === null || ($latest['verdict'] ?? null) !== 'pass' || ! is_string($latest['tree'] ?? null)
+            || strtotime((string) ($latest['generated_at'] ?? '')) < time() - 86400) {
+            return;
+        }
+
+        $diff = $this->toolkit->runner->run(['git', 'diff', '--name-status', '--no-renames', $staged, $latest['tree'], '--']);
+        $lines = array_slice(array_filter(explode("\n", trim($diff->stdout))), 0, 8);
+
+        if ($lines === []) {
+            return;
+        }
+
+        $explain = array_map(static function (string $line): string {
+            [$status, $path] = array_pad(explode("\t", $line, 2), 2, '');
+
+            return '  '.match ($status) {
+                'A' => "verified but not in this commit: {$path}",
+                'D' => "in this commit but not verified: {$path}",
+                default => "differs from the verified version: {$path}",
+            };
+        }, $lines);
+
+        fwrite(STDERR, "ai-verify: no AI-Verify trailer — this commit is not the state {$latest['id']} verified:\n"
+            .implode("\n", $explain)."\n"
+            ."  Stage everything that was verified (git add -A), or re-run php artisan ai:verify on what you commit.\n");
     }
 
     private function range(string $range, bool $single = false): int
