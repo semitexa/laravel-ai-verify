@@ -48,10 +48,12 @@ final class RouteReferences
                 continue;
             }
 
+            $guarded = $this->guardedNames($code);
+
             foreach ($matches as $match) {
                 $name = $match[2][0];
 
-                if (isset($known[$name]) || str_contains($name, '*')) {
+                if (isset($known[$name]) || isset($guarded[$name]) || str_contains($name, '*')) {
                     continue;
                 }
 
@@ -66,6 +68,29 @@ final class RouteReferences
         }
 
         return $violations;
+    }
+
+    /**
+     * Names the file itself checks with `Route::has(...)` before using them, as in Laravel's
+     * default welcome view: `@if (Route::has('login')) … route('login')`. Those are optional on purpose.
+     *
+     * @return array<string, true>
+     */
+    private function guardedNames(string $code): array
+    {
+        $guarded = [];
+
+        if (preg_match_all('/Route::has\(\s*(\[[^\]]*\]|([\'"])[\w.\-:]+\2)/', $code, $calls)) {
+            foreach ($calls[1] as $argument) {
+                preg_match_all('/[\'"]([\w.\-:]+)[\'"]/', $argument, $names);
+
+                foreach ($names[1] as $name) {
+                    $guarded[$name] = true;
+                }
+            }
+        }
+
+        return $guarded;
     }
 
     /** @return list<string> */

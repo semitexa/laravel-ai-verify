@@ -33,6 +33,7 @@ final class RouteReferencesTest extends TestCase
         }
         PHP);
         file_put_contents($this->dir.'/resources/views/contact.blade.php', "<form action=\"{{ route('contact.store') }}\">\n<a href=\"{{ route('home') }}\">\n");
+        file_put_contents($this->dir.'/resources/views/welcome.blade.php', "@if (Route::has('login'))\n<a href=\"{{ route('login') }}\">\n@if (Route::has(['register', 'x']))\n{{ route('register') }}\n@endif\n@endif\n");
         file_put_contents($this->dir.'/tests/Feature/ContactTest.php', "<?php\n\$this->get(route('contact.create'))->assertOk();\n\$r->assertRedirectToRoute('admin.*');\n");
     }
 

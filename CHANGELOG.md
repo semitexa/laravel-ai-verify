@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4 — 2026-10-09
+
+- Route-name check: names a file guards with `Route::has('…')` are no longer reported, as in Laravel's default `welcome.blade.php` (`@if (Route::has('login'))`). An end-to-end agent run flagged these as false positives.
+
 ## 0.3.3 — 2026-10-09
 
 - Stop hook: the "already verified this tree" cache now depends on the base commit, the package version and the config, not only on the uncommitted diff. Before, the same diff re-applied on a new commit reused a stale `pass`, and so did a package upgrade that added checks.
