@@ -45,6 +45,7 @@ final class VerifyCommand extends Command
         {--json : Print one JSON envelope}
         {--ndjson : Stream one JSON object per line (default when stdout is not a terminal)}
         {--human : Human-readable output (default in a terminal)}
+        {--github : GitHub Actions: human-readable log, ::error annotations on the diff and a job summary}
         {--no-graph : Skip the project graph (faster; test selection falls back to naming only)}';
 
     protected $description = 'Plan and run the minimal checks that verify a change set; machine-readable verdict for AI agents';
@@ -56,7 +57,7 @@ final class VerifyCommand extends Command
         $this->mode = match (true) {
             (bool) $this->option('json') => 'json',
             (bool) $this->option('ndjson') => 'ndjson',
-            (bool) $this->option('human') => 'human',
+            (bool) $this->option('human'), (bool) $this->option('github') => 'human',
             default => $this->isTerminal() ? 'human' : 'ndjson',
         };
 
@@ -202,7 +203,11 @@ final class VerifyCommand extends Command
         $this->emit(['kind' => 'verdict', 'verdict' => $report->verdict, 'counts' => $report->counts,
             'headline' => $report->headline, 'unchecked_files' => $report->uncheckedFiles]);
 
-        $this->suggestInstall($toolkit);
+        if ($this->option('github')) {
+            $this->github($report, $results, $receiptRef);
+        } else {
+            $this->suggestInstall($toolkit);
+        }
 
         return $report->exitCode();
     }
@@ -365,6 +370,52 @@ final class VerifyCommand extends Command
         if (count($result->violations) > 10) {
             $this->line('      <fg=gray>… '.(count($result->violations) - 10).' more (use --json)</>');
         }
+    }
+
+    /**
+     * Annotations land on the PR diff at path:line; the summary goes on the run page.
+     *
+     * @param  list<Result>  $results
+     * @param  array<string, mixed>|null  $receipt
+     */
+    private function github(Report $report, array $results, ?array $receipt): void
+    {
+        $escape = static fn (string $v) => str_replace(['%', "\r", "\n"], ['%25', '%0D', '%0A'], $v);
+        $prop = static fn (string $v) => str_replace(['%', "\r", "\n", ':', ','], ['%25', '%0D', '%0A', '%3A', '%2C'], $v);
+
+        foreach ($report->violations() as $v) {
+            $level = ($v['severity'] ?? 'error') === 'error' && empty($v['accepted']) ? 'error' : 'warning';
+            $props = array_filter([
+                'file' => $v['path'] ?? null,
+                'line' => isset($v['line']) ? (string) $v['line'] : null,
+                'title' => 'ai:verify '.($v['target'] ?? $v['check'] ?? '').(isset($v['rule']) ? ' · '.$v['rule'] : ''),
+            ]);
+            $propText = implode(',', array_map(static fn ($k, $val) => $k.'='.$prop((string) $val), array_keys($props), $props));
+            $this->line("::{$level} {$propText}::".$escape((string) $v['message'].(isset($v['tip']) ? "\n".$v['tip'] : '')));
+        }
+
+        foreach ($results as $r) {
+            if ($r->effectiveStatus() === Result::INCOMPLETE) {
+                $this->line('::warning title=ai:verify '.$prop($r->id).' incomplete::'.$escape($r->signal));
+            }
+        }
+
+        $file = getenv('GITHUB_STEP_SUMMARY');
+
+        if ($file === false || $file === '') {
+            return;
+        }
+
+        $icon = ['pass' => '✅', 'fail' => '❌', 'skipped' => '➖', 'incomplete' => '⚠️'];
+        $rows = array_map(static fn (Result $r) => sprintf('| %s | `%s` | %s |',
+            $icon[$r->effectiveStatus()] ?? '', $r->id, str_replace(['|', "\n"], ['\\|', ' '], mb_strimwidth($r->signal, 0, 160, '…'))), $results);
+
+        $md = '### ai:verify — '.($icon[$report->verdict] ?? '').' '.strtoupper($report->verdict)."\n\n"
+            ."{$report->headline}\n\n| | Check | Result |\n|---|---|---|\n".implode("\n", $rows)."\n"
+            .($receipt !== null ? "\nReceipt `{$receipt['id']}`\n" : '')
+            ."\n<sub>[semitexa/laravel-ai-verify](https://github.com/semitexa/laravel-ai-verify) · Laravel port of Semitexa ai:verify</sub>\n";
+
+        @file_put_contents($file, $md, FILE_APPEND);
     }
 
     /** People try the command first; make sure their agents learn about it too. */

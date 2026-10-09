@@ -127,4 +127,19 @@ final class CommandsTest extends TestCase
         $this->assertSame('class:App\Models\Invoice', $node['node']['id']);
         $this->assertSame(['class:App\Billing'], $node['used_by']['references']);
     }
+
+    public function test_github_mode_annotates_violations_and_writes_a_summary(): void
+    {
+        $summary = $this->dir.'/summary.md';
+        putenv('GITHUB_STEP_SUMMARY='.$summary);
+
+        try {
+            Artisan::call('ai:verify', ['--files' => ['app/Broken.php'], '--scope' => 'minimal', '--github' => true]);
+        } finally {
+            putenv('GITHUB_STEP_SUMMARY');
+        }
+
+        $this->assertMatchesRegularExpression('/^::error file=app\/Broken.php,line=\d+,title=ai%3Averify syntax%3Aapp\/Broken.php · php.syntax::/m', Artisan::output());
+        $this->assertStringContainsString('### ai:verify — ❌ FAIL', (string) file_get_contents($summary));
+    }
 }
