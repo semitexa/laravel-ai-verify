@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-10-09
+
+- `ai:verify:install` writes the verify instructions where agents read them:
+  - `AGENTS.md` and `CLAUDE.md`;
+  - `GEMINI.md`, Copilot, Junie, Cursor and Windsurf files when the project uses those agents;
+  - the `ai-verify` skill for Claude Code and `.agents`.
+  It is idempotent, coexists with Laravel Boost's block, and supports `--all`, `--remove` and `--dry-run`.
+- `--hook` adds a Claude Code Stop hook (`ai:verify:hook`). It keeps Claude working while `ai:verify` reports `fail`, respects `stop_hook_active`, and skips a working tree it has already verified.
+- The human output of `ai:verify` suggests `ai:verify:install` when no agent knows about it yet.
+- `php artisan about` gets an "Ai Verify" section.
+
 ## 0.2.0 — 2026-10-09
 
 - **Breaking:** the commands are renamed to `ai:verify` and `ai:graph`, the names Semitexa itself uses. The internal migration probe is now `ai:verify:migration`.

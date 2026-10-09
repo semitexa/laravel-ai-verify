@@ -79,23 +79,56 @@ composer require --dev semitexa/laravel-ai-verify
 Requires PHP 8.3+ and Laravel 12 or 13. Larastan and Pint are used when the project has them.
 Pest or PHPUnit is detected automatically.
 
-### Tell your agent
+### Tell your agents
 
-If you use **[Laravel Boost](https://github.com/laravel/boost)**, re-run `php artisan boost:install`
-and tick `semitexa/laravel-ai-verify` in the third-party list. In non-interactive runs, add it to
-`"packages"` in `boost.json`. The guideline goes into `CLAUDE.md`/`AGENTS.md`, and the
-`ai-verify` skill is installed for every agent that supports skills.
+An agent only uses a tool it knows about. One command puts the instructions where each agent looks:
 
-Otherwise, add this to `CLAUDE.md`, `AGENTS.md` or `.cursor/rules`:
-
-```markdown
-## Verifying changes
-After every coherent change, run `php artisan ai:verify` and read the last line (`"kind":"verdict"`).
-- `pass`: done. `fail`: fix the reported violations (path:line) and re-run.
-- `incomplete`: something could not be checked; read `unchecked_files` and the `incomplete` results. Never report this as done.
-- Never delete, skip or weaken a test to get a pass; if a test change is intentional, add `// verify:accept-test-change <reason>` to the file.
-Use `php artisan ai:graph <class|route|view>` to see what a class touches and which tests cover it before editing.
+```bash
+php artisan ai:verify:install          # AGENTS.md + CLAUDE.md, the files of agents you already use, and skills
+php artisan ai:verify:install --hook   # also: Claude Code may not finish while ai:verify fails
 ```
+
+```text
+  create    AGENTS.md — Codex, Cursor, Copilot, Amp, Jules, Zed and other AGENTS.md readers
+  append    CLAUDE.md — Claude Code
+  create    .claude/skills/ai-verify/SKILL.md — agent skill
+  create    .claude/settings.json — Claude Code Stop hook: php "${CLAUDE_PROJECT_DIR}/artisan" ai:verify:hook
+```
+
+| Agent | Where the instructions go |
+|---|---|
+| Codex, Cursor, Copilot, Amp, Jules, Zed, … | `AGENTS.md` (always) |
+| Claude Code | `CLAUDE.md` (always), `.claude/skills/ai-verify/`, and with `--hook` a Stop hook |
+| Gemini CLI | `GEMINI.md`, if it exists |
+| GitHub Copilot | `.github/copilot-instructions.md`, if it exists |
+| JetBrains Junie | `.junie/guidelines.md`, if it exists |
+| Cursor | `.cursor/rules/ai-verify.mdc`, if `.cursor/` exists |
+| Windsurf | `.windsurf/rules/ai-verify.md`, if `.windsurf/` exists |
+| Agents that read `.agents/skills` | `.agents/skills/ai-verify/`, if `.agents/` exists |
+
+- **Idempotent.** Each file gets one `<!-- ai-verify:start -->…<!-- ai-verify:end -->` block,
+  which is updated in place on re-run. The rest of the file is left alone, including Laravel
+  Boost's `<laravel-boost-guidelines>` block. Boost rewrites only its own block, so the two coexist.
+- **More agents.** `--all` also creates the files for agents the project doesn't use yet.
+- **Undo.** `--remove` takes everything out again, and `--dry-run` shows the plan first.
+- **Commit the files.** Every teammate's agent then gets the same instructions.
+
+**Why the hook.** An agent can ignore an instruction, but it can't ignore a Stop hook. With
+`--hook`, every time Claude Code is about to finish, `ai:verify` checks the uncommitted work. If
+the verdict is `fail`, Claude is sent back with the violations and fixing commands instead of
+stopping. To keep it from getting in the way:
+
+- It never blocks twice in a row (Claude Code's `stop_hook_active`).
+- It doesn't re-run on a working tree it has already checked, so answering a question in a dirty
+  repo costs nothing.
+- `AI_VERIFY_HOOK_SCOPE=minimal` keeps it to a few seconds.
+
+**With [Laravel Boost](https://github.com/laravel/boost)**, you can instead tick
+`semitexa/laravel-ai-verify` in `boost:install`'s third-party list, or add it to `"packages"` in
+`boost.json`. Boost then ships the same guideline and the `ai-verify` skill, and
+`ai:verify:install` steps aside to avoid duplicates. `--hook` still applies.
+
+`php artisan about` shows whether the instructions and the hook are in place.
 
 ## Usage
 
@@ -150,7 +183,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.2.0"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.3.0"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}
