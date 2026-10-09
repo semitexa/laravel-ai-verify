@@ -8,6 +8,7 @@ use Semitexa\LaravelAiVerify\Support\ErrorText;
 use Semitexa\LaravelAiVerify\Support\ProcessRunner;
 use Semitexa\LaravelAiVerify\Support\Workspace;
 use Semitexa\LaravelAiVerify\Verify\Result;
+use Semitexa\LaravelAiVerify\Verify\RouteReferences;
 use Semitexa\LaravelAiVerify\Verify\Target;
 use Semitexa\LaravelAiVerify\Verify\Violation;
 
@@ -68,7 +69,9 @@ final class ArtisanCheck implements Check
         }
 
         if ($outcome->succeeded() && (! $probe['json'] || $this->containsJson($outcome->stdout))) {
-            return Result::pass(ucfirst($probe['what']));
+            return $target->params['probe'] === 'routes'
+                ? $this->checkRouteReferences($target, $outcome->stdout, ucfirst($probe['what']))
+                : Result::pass(ucfirst($probe['what']));
         }
 
         $exception = ErrorText::consoleException($outcome->output);
@@ -79,6 +82,36 @@ final class ArtisanCheck implements Check
             "{$target->params['probe']}: {$message}",
             [new Violation($message, $file, $line, 'laravel.'.$target->params['probe'])],
             $outcome->exitCode,
+        );
+    }
+
+    /**
+     * The route table loads — now make sure nothing still points at a route
+     * name that is gone. After a routes/*.php change the whole project is
+     * scanned (a rename breaks callers anywhere); otherwise only changed files.
+     */
+    private function checkRouteReferences(Target $target, string $stdout, string $passSignal): Result
+    {
+        $start = strcspn($stdout, '[');
+        $routes = json_decode(substr($stdout, $start), true);
+
+        if (! is_array($routes)) {
+            return Result::pass($passSignal);
+        }
+
+        $names = array_values(array_filter(array_map(static fn ($route) => is_array($route) ? ($route['name'] ?? null) : null, $routes)));
+        $refs = $target->params['refs'] ?? 'all';
+        $violations = (new RouteReferences($this->workspace))->missing($names, $refs === 'all' ? null : (array) $refs);
+
+        if ($violations === []) {
+            return Result::pass($passSignal.'; every route name referenced '.($refs === 'all' ? 'in the project' : 'in changed files').' exists');
+        }
+
+        $first = $violations[0];
+
+        return Result::fail(
+            count($violations).' reference(s) to undefined route names; first: '.$first->path.':'.$first->line.' '.$first->message,
+            $violations,
         );
     }
 

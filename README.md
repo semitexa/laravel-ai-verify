@@ -180,7 +180,8 @@ Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
 |---|---|
 | any PHP file | `php -l`, Pint (only fixers new to this change fail the run) |
 | app code, factories, seeders, migrations | PHPStan/Larastan on those files (only errors on changed lines fail the run) |
-| controller, middleware, form request, `routes/*` | `route:list` in a fresh process |
+| controller, middleware, form request, `routes/*` | `route:list` in a fresh process, then every `route('…')` / `to_route('…')` / `redirect()->route('…')` must name an existing route (the whole project after a routes change) |
+| Blade view, mailable, notification, Livewire, view component | the same route-name check on the changed files |
 | `config/*` | `config:cache` into a temp file (catches closures and unserialisable values) |
 | provider, `bootstrap/app.php` | `about` (full boot), routes and events probes, then broad scope |
 | event, listener | `event:list` |
@@ -200,7 +201,7 @@ When stdout is not a terminal, which is how agents run commands, the output is N
 per line, results streamed as each check finishes, and the verdict always last.
 
 ```json
-{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.3.0"}
+{"kind":"summary","source":"dirty (default)","requested_scope":"standard","effective_scope":"standard","changed_files":1,"targets":4,"tool":"semitexa/laravel-ai-verify 0.3.2"}
 {"kind":"file","file_kind":"listener","path":"app/Listeners/NotifySubscribers.php","status":"M"}
 {"kind":"target","id":"artisan:events","check":"artisan","reason":"event → listener map resolved — listener changed","triggered_by":["app/Listeners/NotifySubscribers.php"],"required":true}
 {"kind":"result","id":"artisan:events","check":"artisan","status":"pass","exit_code":0,"signal":"Event → listener map resolved","required":true,"duration_ms":230}

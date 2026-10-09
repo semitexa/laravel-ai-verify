@@ -26,6 +26,11 @@ final class Planner
         'controller' => ['routes'],
         'middleware' => ['routes'],
         'form_request' => ['routes'],
+        'blade' => ['routes'],
+        'mail' => ['routes'],
+        'notification' => ['routes'],
+        'livewire' => ['routes'],
+        'view_component' => ['routes'],
         'config' => ['config'],
         'provider' => ['boot', 'routes', 'events'],
         'composer' => ['boot'],
@@ -149,6 +154,14 @@ final class Planner
             if ($file->kind === FileKind::Composer && str_ends_with($file->path, 'composer.json')) {
                 $plan->add(new Target('composer', 'composer', 'composer.json changed — validate schema and lock sync', [$file->path], [], required: false));
             }
+        }
+
+        // Route-name references: the whole project after a routes/*.php change, else just the changed files.
+        if ($routes = $plan->get('artisan:routes')) {
+            $routeFileChanged = array_filter($files, static fn (ChangedFile $f) => $f->kind === FileKind::Route) !== [];
+            $routes->params['refs'] = $routeFileChanged
+                ? 'all'
+                : array_values(array_map(static fn (ChangedFile $f) => $f->path, array_filter($live, static fn (ChangedFile $f) => $f->kind->isPhp() || $f->kind === FileKind::Blade)));
         }
 
         // Deleted or renamed classes: whoever still imports them must be re-analysed.

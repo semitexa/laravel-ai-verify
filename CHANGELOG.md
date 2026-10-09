@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2 — 2026-10-09
+
+- New check for references to route names that no longer exist: `route()`, `to_route()`, `redirect()->route()`, `URL::route()`, `redirectToRoute()`, `assertRedirectToRoute()`. It runs with the routes probe and reports `path:line` for each one.
+  - After a `routes/*.php` change it scans the whole project, because a rename can break callers anywhere.
+  - Otherwise it scans only the changed files. Blade views, mailables, notifications, Livewire and view components now trigger it too.
+- Found by an end-to-end run. A fresh Claude Code session renamed `contact.create` to `contact.show`. The Stop hook ran, but no selected test referenced the old name, so the broken references passed unnoticed.
+
 ## 0.3.1 — 2026-10-09
 
 - Docs only: README hero, badges and FAQ. The FAQ covers agents that report "done" while tests fail, deleted or skipped tests, AGENTS.md/CLAUDE.md setup for Laravel, and running only affected tests.
