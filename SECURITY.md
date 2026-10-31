@@ -13,7 +13,9 @@ Security fixes go into the latest release of the newest minor line. Until 1.0, t
 
 Please do not open a public issue for a security problem.
 
-Email **support@semitexa.com** with:
+Report it privately on GitHub: **[Report a vulnerability](https://github.com/semitexa/laravel-ai-verify/security/advisories/new)**. Only the maintainers see the report, and the fix and its advisory are prepared there with you. If you can't use GitHub, email **support@semitexa.com** instead.
+
+Either way, include:
 
 - the affected version,
 - what an attacker can do and under which conditions,
