@@ -9,7 +9,7 @@ use Semitexa\LaravelAiVerify\Support\Workspace;
 /**
  * PHP-CS-Fixer: `fix --dry-run --format=json`. `--path-mode=override` makes
  * the given files the whole job, so the config's Finder does not widen it.
- * Since 3.6x the JSON report names the applied fixers only with `-v`; a file
+ * The JSON report (3.95 at least) names the applied fixers only with `-v`; a file
  * listed without them still needs fixing.
  */
 final class PhpCsFixerTool extends StyleTool
