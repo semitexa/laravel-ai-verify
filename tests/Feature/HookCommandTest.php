@@ -72,4 +72,21 @@ final class HookCommandTest extends TestCase
         $this->assertSame(0, Artisan::call('ai:verify:hook'));
         $this->assertSame('', trim(Artisan::output()));
     }
+
+    public function test_after_a_block_a_changed_tree_is_verified_again(): void
+    {
+        $failed = ['fingerprint' => 'tree-1', 'verdict' => 'fail', 'blocks' => 1];
+
+        $this->assertTrue(HookCommand::shouldVerify(true, $failed, 'tree-2'), 'the agent edited after the block: check the fix');
+        $this->assertFalse(HookCommand::shouldVerify(true, $failed, 'tree-1'), 'nothing changed since the block: let Claude stop');
+        $this->assertFalse(HookCommand::shouldVerify(false, $failed, 'tree-1'), 'same tree in a new turn: already judged');
+    }
+
+    public function test_blocks_stop_below_claude_codes_own_cap(): void
+    {
+        $this->assertTrue(HookCommand::shouldVerify(true, ['fingerprint' => 'a', 'blocks' => HookCommand::MAX_BLOCKS - 1], 'b'));
+        $this->assertFalse(HookCommand::shouldVerify(true, ['fingerprint' => 'a', 'blocks' => HookCommand::MAX_BLOCKS], 'b'));
+        $this->assertTrue(HookCommand::shouldVerify(false, ['fingerprint' => 'a', 'blocks' => HookCommand::MAX_BLOCKS], 'b'), 'a new turn starts the count again');
+        $this->assertTrue(HookCommand::shouldVerify(false, null, 'a'));
+    }
 }

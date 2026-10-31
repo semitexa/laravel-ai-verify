@@ -14,9 +14,11 @@ use Semitexa\LaravelAiVerify\Toolkit;
  *
  * Runs `ai:verify` on the uncommitted work when Claude is about to finish.
  * On `fail` it prints a block decision with the violations, so Claude keeps
- * working. It never blocks twice in a row (`stop_hook_active`), and it skips
- * a working tree it has already verified, so answering a question in a dirty
- * repo does not re-run the checks or nag about the same failure.
+ * working. After a block it verifies again whenever the agent changed the
+ * tree, so a half-done fix is blocked too. It lets Claude stop when the tree
+ * is the one it already judged (answering a question in a dirty repo does not
+ * re-run anything, and an agent that gave up is not held in a loop), and
+ * after MAX_BLOCKS blocks in one continuation, below Claude Code's own cap.
  */
 final class HookCommand extends Command
 {
@@ -26,13 +28,13 @@ final class HookCommand extends Command
 
     protected $hidden = true;
 
+    /** Consecutive blocks while Claude is already continuing (`stop_hook_active`); Claude Code itself caps at 8. */
+    public const MAX_BLOCKS = 5;
+
     public function handle(): int
     {
         $input = $this->stdinJson();
-
-        if (($input['stop_hook_active'] ?? false) === true) {
-            return self::SUCCESS;
-        }
+        $continuing = ($input['stop_hook_active'] ?? false) === true;
 
         $toolkit = Toolkit::fromApp($this->laravel);
         $fingerprint = $this->fingerprint($toolkit);
@@ -43,8 +45,9 @@ final class HookCommand extends Command
 
         $stateFile = $toolkit->workspace->tempPath('hook-state.json');
         $state = json_decode((string) @file_get_contents($stateFile), true);
+        $state = is_array($state) ? $state : null;
 
-        if (is_array($state) && ($state['fingerprint'] ?? null) === $fingerprint) {
+        if (! self::shouldVerify($continuing, $state, $fingerprint)) {
             return self::SUCCESS;
         }
 
@@ -55,7 +58,8 @@ final class HookCommand extends Command
         $report = json_decode($outcome->stdout, true);
         $verdict = is_array($report) ? (string) ($report['verdict'] ?? 'unknown') : 'unknown';
 
-        file_put_contents($stateFile, (string) json_encode(['fingerprint' => $fingerprint, 'verdict' => $verdict, 'at' => date(DATE_ATOM)]));
+        $blocks = $verdict === 'fail' ? ($continuing ? (int) ($state['blocks'] ?? 0) + 1 : 1) : 0;
+        file_put_contents($stateFile, (string) json_encode(['fingerprint' => $fingerprint, 'verdict' => $verdict, 'blocks' => $blocks, 'at' => date(DATE_ATOM)]));
 
         if ($verdict !== 'fail' || ! is_array($report)) {
             return self::SUCCESS;
@@ -67,6 +71,21 @@ final class HookCommand extends Command
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Verify unless the tree is exactly the one the last run judged, or the
+     * agent has already been sent back MAX_BLOCKS times in this continuation.
+     *
+     * @param  array<string, mixed>|null  $state  the previous run: fingerprint, verdict, blocks
+     */
+    public static function shouldVerify(bool $continuing, ?array $state, string $fingerprint): bool
+    {
+        if ($state !== null && ($state['fingerprint'] ?? null) === $fingerprint) {
+            return false;
+        }
+
+        return ! ($continuing && (int) ($state['blocks'] ?? 0) >= self::MAX_BLOCKS);
     }
 
     /** @param array<string, mixed> $report */

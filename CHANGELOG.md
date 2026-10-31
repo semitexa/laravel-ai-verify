@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1 - 2026-10-31
+
+- **The Stop hook checks the fix, not only the first attempt.** Until now it let Claude stop whenever Claude Code reported `stop_hook_active`, that is, on any stop after a first block, so a half-done fix (the controller updated, the tests still calling the old route name) went through unchecked. Now it verifies again whenever the tree changed since the last verdict and blocks again on `fail`. It still lets Claude stop when nothing changed since the block, and after 5 blocks in one continuation, below Claude Code's own cap of 8 consecutive continuations.
+
 ## 0.7.0 - 2026-10-31
 
 - **Your code style, not a preset.** The style check now runs the tool the project has a config for: `pint.json` (Pint), `.php-cs-fixer.php` / `.php-cs-fixer.dist.php` (PHP-CS-Fixer), `phpcs.xml` and its variants (PHP_CodeSniffer) or `ecs.php` (Easy Coding Standard), several if there are several. Pint's `laravel` preset is used only when the project has no style config at all. Until now Pint ran whenever it was installed, which every new Laravel app is, so a project that keeps its rules in `.php-cs-fixer.php` got new files failed against someone else's style.

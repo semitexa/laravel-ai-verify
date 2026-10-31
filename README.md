@@ -165,11 +165,12 @@ php artisan ai:verify:install --git-hook   # also: verified commits get an AI-Ve
 **Why the hook.** An agent can ignore an instruction, but it can't ignore a Stop hook. With
 `--hook`, every time Claude Code is about to finish, `ai:verify` checks the uncommitted work. If
 the verdict is `fail`, Claude is sent back with the violations and fixing commands instead of
-stopping. To keep it from getting in the way:
+stopping. After a block it checks again whenever the agent changes something, so a half-done fix
+is sent back too. To keep it from getting in the way:
 
-- It never blocks twice in a row (Claude Code's `stop_hook_active`).
 - It doesn't re-run on a working tree it has already checked, so answering a question in a dirty
-  repo costs nothing.
+  repo costs nothing, and an agent that stops without changing anything after a block is let go.
+- It stops blocking after 5 rounds in one continuation, below Claude Code's own cap of 8.
 - `AI_VERIFY_HOOK_SCOPE=minimal` keeps it to a few seconds.
 
 **With [Laravel Boost](https://github.com/laravel/boost)**, you can instead tick
