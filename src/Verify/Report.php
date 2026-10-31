@@ -6,6 +6,7 @@ namespace Semitexa\LaravelAiVerify\Verify;
 
 use Semitexa\LaravelAiVerify\Support\Workspace;
 use Semitexa\LaravelAiVerify\Verify\Checks\ArtisanCheck;
+use Semitexa\LaravelAiVerify\Verify\Style\StyleDetector;
 
 /**
  * The verdict and everything an agent needs to act on it.
@@ -128,7 +129,8 @@ final class Report
             $files = array_values(array_filter(array_map(static fn (Violation $v) => $v->path, $result->violations)));
 
             $cmd = match (true) {
-                $result->check === 'pint' && $result->status === Result::FAIL => ['cmd' => 'vendor/bin/pint '.implode(' ', array_unique($files)), 'why' => 'auto-fix code style, then re-verify'],
+                $result->check === 'style' && $result->status === Result::FAIL && ($fix = self::styleFix($result, $files)) !== null => ['cmd' => $fix, 'why' => 'auto-fix code style, then re-verify'],
+                $result->check === 'command' && $result->status === Result::FAIL && $result->command !== null => ['cmd' => implode(' ', $result->command), 'why' => 'reproduce the custom check with its full output'],
                 $result->check === 'tests' && $result->status === Result::FAIL => ['cmd' => 'php artisan test '.(str_starts_with($result->id, 'tests:suite') ? '' : substr($result->id, 6)), 'why' => 'reproduce the failing test with full output'],
                 $result->check === 'phpstan' && $result->status === Result::SKIPPED => ['cmd' => 'composer require --dev larastan/larastan', 'why' => 'enable static analysis of changed code'],
                 $result->check === 'test_integrity' && $result->status === Result::FAIL => ['cmd' => 'git diff '.implode(' ', array_unique($files)), 'why' => 'restore the removed tests/assertions, or mark the change with // verify:accept-test-change <reason>'],
@@ -148,6 +150,12 @@ final class Report
         }
 
         return $next;
+    }
+
+    /** @param list<string> $files */
+    private static function styleFix(Result $result, array $files): ?string
+    {
+        return StyleDetector::tool($result->id)?->fixCommand(array_values(array_unique($files)));
     }
 
     /** @return array<string, mixed> */

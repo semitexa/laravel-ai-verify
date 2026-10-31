@@ -18,7 +18,7 @@ use Semitexa\LaravelAiVerify\Verify\Violation;
  */
 final class PhpstanCheck implements Check
 {
-    private const CONFIGS = ['phpstan.neon', 'phpstan.neon.dist', 'phpstan.dist.neon'];
+    public const CONFIGS = ['phpstan.neon', 'phpstan.neon.dist', 'phpstan.dist.neon'];
 
     public function __construct(
         private readonly Workspace $workspace,

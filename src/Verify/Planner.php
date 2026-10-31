@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Semitexa\LaravelAiVerify\Verify;
 
 use Semitexa\LaravelAiVerify\Graph\ImpactAnalyzer;
+use Semitexa\LaravelAiVerify\Support\PathPattern;
 use Semitexa\LaravelAiVerify\Verify\Checks\ArtisanCheck;
 
 /**
@@ -12,8 +13,11 @@ use Semitexa\LaravelAiVerify\Verify\Checks\ArtisanCheck;
  * still vouch for it.
  *
  *   minimal  — syntax, Blade compile, JSON validity, changed tests, test integrity
- *   standard — + Pint, PHPStan, related tests (graph + naming), Laravel probes per kind
+ *   standard — + the project's style tool, PHPStan, related tests (graph + naming), Laravel probes per kind
  *   broad    — + every Laravel probe and the whole test suite
+ *
+ * Custom commands from the config join at the scope they ask for, when one
+ * of the changed files matches their `when` patterns.
  *
  * Standard is bumped to broad when contracts, providers or composer files
  * change, or when the change set is large.
@@ -41,7 +45,11 @@ final class Planner
     ];
 
     /**
-     * @param  array{broad_threshold?: int, max_test_targets?: int, test_depth?: int, pint?: bool, phpstan?: bool, migrations?: bool, test_integrity?: bool}  $options
+     * `style_tools` lists the style tools to run (ids, see StyleDetector); an
+     * empty list still plans one `style` target, so the verdict says why no
+     * style check ran.
+     *
+     * @param  array{broad_threshold?: int, max_test_targets?: int, test_depth?: int, style?: bool, style_tools?: list<string>, phpstan?: bool, migrations?: bool, test_integrity?: bool, commands?: list<array{name: string, run: string|list<string>, when: list<string>, scope: string, required: bool, timeout: ?int}>}  $options
      */
     public function __construct(
         private readonly TestLocator $tests,
@@ -116,8 +124,42 @@ final class Planner
         }
 
         $this->addTestTargets($plan, $testTargets, $effective, $paths($live));
+        $this->addCommands($plan, $files, $live, $effective);
 
         return $plan;
+    }
+
+    /**
+     * @param  list<ChangedFile>  $files
+     * @param  list<ChangedFile>  $live
+     */
+    private function addCommands(Plan $plan, array $files, array $live, Scope $scope): void
+    {
+        foreach ($this->options['commands'] ?? [] as $command) {
+            if (! $scope->atLeast(Scope::fromInput($command['scope']))) {
+                continue;
+            }
+
+            $matches = static fn (ChangedFile $f) => $command['when'] === [] || PathPattern::any($command['when'], $f->path);
+            $triggers = array_values(array_map(static fn (ChangedFile $f) => $f->path, array_filter($files, $matches)));
+
+            if ($triggers === []) {
+                continue;
+            }
+
+            $plan->add(new Target(
+                'command:'.$command['name'], 'command',
+                'custom check from ai-verify.commands'.($command['when'] !== [] ? ' (when '.implode(', ', $command['when']).')' : ''),
+                $triggers,
+                [
+                    'name' => $command['name'],
+                    'run' => $command['run'],
+                    'files' => array_values(array_map(static fn (ChangedFile $f) => $f->path, array_filter($live, $matches))),
+                    'timeout' => $command['timeout'],
+                ],
+                required: $command['required'],
+            ));
+        }
     }
 
     /**
@@ -186,8 +228,18 @@ final class Planner
             }
         }
 
-        if ($phpForStyle !== [] && ($this->options['pint'] ?? true)) {
-            $plan->add(new Target('pint', 'pint', 'Code style of changed PHP files', $phpForStyle, ['files' => $phpForStyle, 'ref' => $this->gitRef ?? 'HEAD'], required: false));
+        if ($phpForStyle !== [] && ($this->options['style'] ?? true)) {
+            $tools = $this->options['style_tools'] ?? ['pint'];
+
+            foreach ($tools === [] ? [null] : $tools as $tool) {
+                $plan->add(new Target(
+                    $tool ?? 'style', 'style',
+                    'Code style of changed PHP files'.($tool !== null ? " ({$tool})" : ''),
+                    $phpForStyle,
+                    ['tool' => $tool, 'files' => $phpForStyle, 'ref' => $this->gitRef ?? 'HEAD'],
+                    required: false,
+                ));
+            }
         }
 
         $phpForAnalysis = array_values(array_unique($phpForAnalysis));

@@ -136,4 +136,44 @@ final class PlannerTest extends TestCase
     {
         $this->assertNotContains('syntax:app/Models/Post.php', $this->ids($this->plan(['app/Models/Post.php' => 'D'])));
     }
+
+    public function test_each_detected_style_tool_gets_its_own_target(): void
+    {
+        $plan = $this->plan(['app/Models/Post.php' => 'M'], Scope::Standard, ['style_tools' => ['php-cs-fixer', 'phpcs']]);
+
+        $this->assertSame('style', $plan->get('php-cs-fixer')?->check);
+        $this->assertSame('phpcs', $plan->get('phpcs')?->params['tool']);
+        $this->assertNull($plan->get('pint'));
+    }
+
+    public function test_no_style_tool_still_plans_a_style_target_that_explains_itself(): void
+    {
+        $plan = $this->plan(['app/Models/Post.php' => 'M'], Scope::Standard, ['style_tools' => []]);
+
+        $this->assertNull($plan->get('style')?->params['tool']);
+        $this->assertNull($this->plan(['app/Models/Post.php' => 'M'], Scope::Standard, ['style' => false])->get('pint'));
+    }
+
+    public function test_custom_commands_follow_when_and_scope(): void
+    {
+        $command = static fn (array $over) => ['name' => 'rector', 'run' => 'vendor/bin/rector {files}', 'when' => ['app/'], 'scope' => 'standard', 'required' => true, 'timeout' => null, ...$over];
+        $files = ['app/Models/Post.php' => 'M', 'routes/web.php' => 'M', 'app/Gone.php' => 'D'];
+
+        $target = $this->plan($files, Scope::Standard, ['commands' => [$command([])]])->get('command:rector');
+        $this->assertSame(['app/Models/Post.php', 'app/Gone.php'], $target?->triggeredBy);
+        $this->assertSame(['app/Models/Post.php'], $target?->params['files'], 'deleted files are not passed to the command');
+
+        $this->assertNull($this->plan(['routes/web.php' => 'M'], Scope::Standard, ['commands' => [$command([])]])->get('command:rector'));
+        $this->assertNull($this->plan($files, Scope::Minimal, ['commands' => [$command([])]])->get('command:rector'));
+        $this->assertNotNull($this->plan($files, Scope::Minimal, ['commands' => [$command(['scope' => 'minimal'])]])->get('command:rector'));
+        $this->assertNotNull($this->plan(['routes/web.php' => 'M'], Scope::Standard, ['commands' => [$command(['when' => []])]])->get('command:rector'));
+    }
+
+    public function test_custom_commands_run_before_tests(): void
+    {
+        $command = ['name' => 'lint', 'run' => 'true', 'when' => [], 'scope' => 'standard', 'required' => true, 'timeout' => null];
+        $ids = $this->ids($this->plan(['app/Models/Post.php' => 'M'], Scope::Standard, ['commands' => [$command]]));
+
+        $this->assertLessThan(array_search('tests:tests/Feature/PostTest.php', $ids, true), array_search('command:lint', $ids, true));
+    }
 }

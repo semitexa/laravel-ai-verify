@@ -44,8 +44,8 @@ final class Plan
     /** @return list<Target> in execution order: cheap and decisive first, slow last */
     public function targets(): array
     {
-        $order = ['syntax' => 0, 'json' => 1, 'blade' => 2, 'test_integrity' => 3, 'composer' => 4, 'pint' => 5,
-            'artisan' => 6, 'migration' => 7, 'phpstan' => 8, 'tests' => 9];
+        $order = ['syntax' => 0, 'json' => 1, 'blade' => 2, 'test_integrity' => 3, 'composer' => 4, 'style' => 5,
+            'artisan' => 6, 'migration' => 7, 'phpstan' => 8, 'command' => 9, 'tests' => 10];
 
         $targets = array_values($this->targets);
         usort($targets, static fn (Target $a, Target $b) => ($order[$a->check] ?? 99) <=> ($order[$b->check] ?? 99));

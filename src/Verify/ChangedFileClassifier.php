@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Semitexa\LaravelAiVerify\Verify;
 
+use Semitexa\LaravelAiVerify\Support\PathPattern;
+
 /**
  * Path-only classification into Laravel kinds. First match wins.
  * Directory fragments are matched anywhere in the path, so modular layouts
@@ -46,10 +48,7 @@ final class ChangedFileClassifier
         $path = '/'.ltrim(str_replace('\\', '/', $path), '/');
 
         foreach ($this->overrides as $pattern => $kind) {
-            $pattern = '/'.ltrim($pattern, '/');
-
-            if ((str_contains($pattern, '*') ? fnmatch($pattern, $path) : str_starts_with($path, $pattern))
-                && ($resolved = FileKind::tryFrom($kind)) !== null) {
+            if (PathPattern::matches($pattern, $path) && ($resolved = FileKind::tryFrom($kind)) !== null) {
                 return $resolved;
             }
         }

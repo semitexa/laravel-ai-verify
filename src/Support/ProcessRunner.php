@@ -38,13 +38,44 @@ final class ProcessRunner
         private readonly array $scrub = [],
     ) {}
 
+    /** The same runner with another wall-clock limit (per-check `timeouts` in the config). */
+    public function withTimeout(int $seconds): self
+    {
+        return new self($this->cwd, $seconds, $this->outputCapBytes, $this->scrub);
+    }
+
     /**
      * @param  list<string>  $argv
      * @param  array<string, string|false>  $env
      */
     public function run(array $argv, array $env = []): ProcessOutcome
     {
-        $process = new Process($argv, $this->cwd, array_merge(array_fill_keys($this->scrub, false), self::ENV, $env), null, $this->timeoutSeconds);
+        return $this->execute(new Process($argv, $this->cwd, $this->env($env), null, $this->timeoutSeconds), $argv);
+    }
+
+    /**
+     * A command line for the platform's shell, for user-written commands from
+     * the config (`composer lint`, `npm run lint -- {files}`).
+     *
+     * @param  array<string, string|false>  $env
+     */
+    public function runShell(string $command, array $env = []): ProcessOutcome
+    {
+        return $this->execute(Process::fromShellCommandline($command, $this->cwd, $this->env($env), null, $this->timeoutSeconds), [$command]);
+    }
+
+    /**
+     * @param  array<string, string|false>  $env
+     * @return array<string, string|false>
+     */
+    private function env(array $env): array
+    {
+        return array_merge(array_fill_keys($this->scrub, false), self::ENV, $env);
+    }
+
+    /** @param list<string> $argv */
+    private function execute(Process $process, array $argv): ProcessOutcome
+    {
 
         $output = '';
         $stdout = '';

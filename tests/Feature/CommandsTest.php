@@ -103,6 +103,54 @@ final class CommandsTest extends TestCase
         $this->assertSame([['path' => 'NOTES.md', 'kind' => 'non_php']], $report['unchecked_files']);
     }
 
+    public function test_ignored_files_are_left_out(): void
+    {
+        config()->set('ai-verify.ignore', ['app/Broken.php']);
+
+        Artisan::call('ai:verify', ['--files' => ['app/Broken.php', 'app/Models/Invoice.php'], '--scope' => 'minimal', '--json' => true]);
+        $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('pass', $report['verdict'], 'the syntax error is in an ignored file');
+        $this->assertSame(['app/Models/Invoice.php'], array_column($report['files'], 'path'));
+        $this->assertStringContainsString('left out by ai-verify.ignore: app/Broken.php', implode(' ', $report['expansions']));
+
+        $events = $this->ndjson('ai:verify', ['--files' => ['app/Broken.php'], '--ndjson' => true]);
+        $this->assertSame('nothing_to_verify', $this->first($events, 'verdict')['verdict']);
+    }
+
+    public function test_a_custom_command_from_the_config_decides_the_verdict(): void
+    {
+        config()->set('ai-verify.commands', ['house-rules' => ['run' => 'grep -q "declare(strict_types=1)" {files} || { echo {files}; exit 1; }', 'scope' => 'minimal']]);
+
+        Artisan::call('ai:verify', ['--files' => ['app/Models/Invoice.php'], '--scope' => 'minimal', '--json' => true]);
+        $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('fail', $report['verdict']);
+        $this->assertContains('command:house-rules', array_column($report['results'], 'id'));
+        $this->assertSame('app/Models/Invoice.php', $report['violations'][0]['message']);
+    }
+
+    public function test_doctor_explains_the_setup(): void
+    {
+        mkdir($this->dir.'/vendor/bin', 0o777, true);
+        touch($this->dir.'/vendor/bin/pint');
+        touch($this->dir.'/phpcs.xml');
+        config()->set('ai-verify.commands', ['rector' => 'vendor/bin/rector process --dry-run {files}', 'broken' => ['when' => 'app/']]);
+
+        Artisan::call('ai:verify:doctor', ['--json' => true]);
+        $doctor = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('phpcs', $doctor['style']['tools'][0]['tool']);
+        $this->assertFalse($doctor['style']['tools'][0]['installed']);
+        $this->assertSame('rector', $doctor['commands'][0]['name']);
+        $this->assertSame([], $doctor['commands'][0]['when']);
+        $this->assertContains("phpcs.xml is the project's standard, but vendor/bin/phpcs is not installed", $doctor['problems']);
+        $this->assertContains("ai-verify.commands.broken has no 'run' command; skipped", $doctor['problems']);
+
+        $this->assertSame(0, Artisan::call('ai:verify:doctor'));
+        $this->assertStringContainsString('PHP_CodeSniffer', Artisan::output());
+    }
+
     public function test_no_source_outside_git_is_an_error(): void
     {
         $events = $this->ndjson('ai:verify', ['--ndjson' => true]);

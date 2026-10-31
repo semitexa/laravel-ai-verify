@@ -8,6 +8,7 @@ use Illuminate\Foundation\Console\AboutCommand;
 use Illuminate\Support\ServiceProvider;
 use Semitexa\LaravelAiVerify\Agents\AgentInstructions;
 use Semitexa\LaravelAiVerify\Agents\ClaudeHook;
+use Semitexa\LaravelAiVerify\Console\DoctorCommand;
 use Semitexa\LaravelAiVerify\Console\GraphCommand;
 use Semitexa\LaravelAiVerify\Console\HookCommand;
 use Semitexa\LaravelAiVerify\Console\InstallCommand;
@@ -45,6 +46,7 @@ final class AiVerifyServiceProvider extends ServiceProvider
             HookCommand::class,
             ReceiptCommand::class,
             MigrationProbeCommand::class,
+            DoctorCommand::class,
         ]);
 
         AboutCommand::add('Ai Verify', function (): array {
@@ -59,6 +61,7 @@ final class AiVerifyServiceProvider extends ServiceProvider
                     default => 'missing — php artisan ai:verify:install',
                 },
                 'Claude Code hook' => (new ClaudeHook($workspace))->installed() ? 'installed' : 'off',
+                'Code style' => implode(', ', array_map(static fn ($s) => $s->id(), Toolkit::fromApp($this->app)->style()['setups'])) ?: 'none',
                 'Verify' => 'php artisan ai:verify',
             ];
         });

@@ -9,6 +9,7 @@ use RuntimeException;
 use Semitexa\LaravelAiVerify\Agents\AgentInstructions;
 use Semitexa\LaravelAiVerify\Receipts\Receipts;
 use Semitexa\LaravelAiVerify\Support\GitTree;
+use Semitexa\LaravelAiVerify\Support\PathPattern;
 use Semitexa\LaravelAiVerify\Toolkit;
 use Semitexa\LaravelAiVerify\Verify\ChangeCollector;
 use Semitexa\LaravelAiVerify\Verify\ChangedFile;
@@ -21,7 +22,7 @@ use Semitexa\LaravelAiVerify\Verify\TestLocator;
 
 /**
  * Agent-facing verifier: takes a change set, plans the precise subset of
- * syntax / Blade / Pint / PHPStan / Laravel boot / test checks it needs,
+ * syntax / Blade / code style / PHPStan / Laravel boot / test checks it needs,
  * runs them with timeouts, and emits a verdict an agent can act on.
  *
  *   php artisan ai:verify                       # uncommitted work (default)
@@ -79,6 +80,20 @@ final class VerifyCommand extends Command
             return $this->reportError('no changed files supplied — pass --files, --git-ref, --diff-stdin or --dirty');
         }
 
+        $ignored = [];
+
+        if ($patterns = $toolkit->ignore()) {
+            $kept = array_values(array_filter($files, static fn (ChangedFile $f) => ! PathPattern::any($patterns, $f->path)));
+            $ignored = array_values(array_diff(array_map(static fn (ChangedFile $f) => $f->path, $files), array_map(static fn (ChangedFile $f) => $f->path, $kept)));
+            $files = $kept;
+        }
+
+        if ($files === []) {
+            $this->emit(['kind' => 'verdict', 'verdict' => 'nothing_to_verify', 'source' => $source, 'headline' => count($ignored).' changed file(s), all matched by ai-verify.ignore — nothing to verify']);
+
+            return self::SUCCESS;
+        }
+
         foreach ($files as $file) {
             $file->kind = $toolkit->classifier->classify($file->path);
         }
@@ -90,12 +105,7 @@ final class VerifyCommand extends Command
         $planner = new Planner(
             new TestLocator($toolkit->workspace, (string) ($toolkit->config['tests_path'] ?? 'tests')),
             $useGraph ? $toolkit->impact() : null,
-            [
-                'broad_threshold' => $toolkit->config['broad_threshold'] ?? 15,
-                'max_test_targets' => $toolkit->config['max_test_targets'] ?? 25,
-                'test_depth' => $toolkit->config['test_depth'] ?? 4,
-                ...((array) ($toolkit->config['checks'] ?? [])),
-            ],
+            $toolkit->plannerOptions(),
             $this->option('git-ref') ?: null,
             is_dir($toolkit->workspace->path('.git')) || $source !== 'files',
         );
@@ -118,12 +128,22 @@ final class VerifyCommand extends Command
             $this->emit(['kind' => 'impact'] + $impact);
         }
 
+        if ($ignored !== []) {
+            $plan->expansions[] = count($ignored).' file(s) left out by ai-verify.ignore: '.implode(', ', array_slice($ignored, 0, 5)).(count($ignored) > 5 ? ' …' : '');
+        }
+
         foreach ($plan->expansions as $note) {
             $this->emit(['kind' => 'expansion', 'note' => $note]);
         }
 
-        foreach ($toolkit->graphWarnings() as $warning) {
-            $this->emit(['kind' => 'warning', 'message' => 'graph probe failed — '.$warning]);
+        $warnings = [
+            ...$toolkit->style()['warnings'],
+            ...$toolkit->commands()['warnings'],
+            ...array_map(static fn (string $w) => 'graph probe failed — '.$w, $toolkit->graphWarnings()),
+        ];
+
+        foreach ($warnings as $warning) {
+            $this->emit(['kind' => 'warning', 'message' => $warning]);
         }
 
         if ($this->mode === 'ndjson') {
@@ -171,6 +191,7 @@ final class VerifyCommand extends Command
                 'source' => $source,
                 ...$report->summary(),
                 'expansions' => $plan->expansions,
+                'warnings' => $warnings,
                 'files' => array_map(static fn ($f) => $f->toArray(), $files),
                 'targets' => array_map(static fn (Target $t) => $t->toArray(), $plan->targets()),
                 'results' => array_map(static fn (Result $r) => $r->toArray(), $results),

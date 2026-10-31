@@ -21,7 +21,7 @@ final class AiVerify extends Tool
 {
     use RunsArtisanJson;
 
-    protected string $description = 'Verify the current change in this Laravel app before saying it is done. Runs only the checks the change needs (PHP syntax, the tests that cover the changed code, Larastan and Pint on changed lines, Laravel boot, Blade compile, migrations in pretend mode, test integrity) and returns one verdict: pass, fail or incomplete, with each failure located in a file and line. By default it verifies uncommitted work. Act on every failure, then call it again; report the change as done only after a pass. A pass writes a receipt that the git hook turns into an AI-Verify commit trailer.';
+    protected string $description = 'Verify the current change in this Laravel app before saying it is done. Runs only the checks the change needs (PHP syntax, the tests that cover the changed code, Larastan and the project code style tool on changed lines, custom checks from the config, Laravel boot, Blade compile, migrations in pretend mode, test integrity) and returns one verdict: pass, fail or incomplete, with each failure located in a file and line. By default it verifies uncommitted work. Act on every failure, then call it again; report the change as done only after a pass. A pass writes a receipt that the git hook turns into an AI-Verify commit trailer.';
 
     /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array

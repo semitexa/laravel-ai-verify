@@ -68,9 +68,19 @@ final class ReportTest extends TestCase
 
     public function test_next_commands_point_at_the_fix(): void
     {
-        $pint = $this->bound(Result::fail('style', [new Violation('x', 'app/A.php', null, 'pint')]), check: 'pint');
-        $next = $this->report([$pint])->nextCommands();
+        $style = static fn (string $tool) => Result::fail('style', [new Violation('x', 'app/A.php', null, $tool)])
+            ->bindTo(new Target($tool, 'style', 'test', ['app/A.php'], required: false));
 
-        $this->assertSame('vendor/bin/pint app/A.php', $next[0]['cmd']);
+        $this->assertSame('vendor/bin/pint app/A.php', $this->report([$style('pint')])->nextCommands()[0]['cmd']);
+        $this->assertSame('vendor/bin/phpcbf app/A.php', $this->report([$style('phpcs')])->nextCommands()[0]['cmd']);
+        $this->assertSame('vendor/bin/php-cs-fixer fix app/A.php', $this->report([$style('php-cs-fixer')])->nextCommands()[0]['cmd']);
+    }
+
+    public function test_a_failed_custom_command_is_reproduced_as_written(): void
+    {
+        $result = $this->bound(Result::fail('rector failed', [new Violation('diff', null, null, 'command.rector')]), check: 'command');
+        $result->command = ['vendor/bin/rector process --dry-run app/A.php'];
+
+        $this->assertSame('vendor/bin/rector process --dry-run app/A.php', $this->report([$result])->nextCommands()[0]['cmd']);
     }
 }

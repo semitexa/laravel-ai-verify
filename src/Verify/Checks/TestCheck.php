@@ -19,9 +19,13 @@ use SimpleXMLElement;
  */
 final class TestCheck implements Check
 {
+    /**
+     * @param  list<string>  $extraArgs  `ai-verify.test_args`, e.g. ['--parallel'] or ['--testsuite=Unit,Feature']
+     */
     public function __construct(
         private readonly Workspace $workspace,
         private readonly ProcessRunner $runner,
+        private readonly array $extraArgs = [],
     ) {}
 
     public function runnerName(): ?string
@@ -41,7 +45,7 @@ final class TestCheck implements Check
         @unlink($junit);
 
         $path = $target->params['path'] ?? null;
-        $argv = [$this->workspace->phpBinary, (string) $this->workspace->bin($runner), '--log-junit', $junit, '--do-not-cache-result'];
+        $argv = [$this->workspace->phpBinary, (string) $this->workspace->bin($runner), '--log-junit', $junit, '--do-not-cache-result', ...$this->extraArgs];
 
         if ($path !== null) {
             $argv[] = (string) $path;
