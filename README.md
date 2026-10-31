@@ -8,7 +8,8 @@
 **AI code verification for Laravel.** Claude Code, Cursor, Codex, Copilot or Gemini says the
 change is done. `php artisan ai:verify` checks whether it is.
 
-It runs only the tests, Larastan, Pint and Laravel boot checks the diff actually needs. It fails
+It runs only the tests, Larastan, code style and Laravel boot checks the diff actually needs, with
+your project's own tools: Pint, PHP-CS-Fixer, PHP_CodeSniffer or ECS, plus any command you add. It fails
 the change if the agent deleted, skipped or weakened a test to get green. It returns one verdict the
 agent must act on: `pass`, `fail` or `incomplete`. One more command writes the instructions into
 `AGENTS.md` and `CLAUDE.md`. For Claude Code it also adds a Stop hook, so the agent cannot finish
@@ -81,7 +82,7 @@ than it sounds:
 - **The full test suite** is slow, so agents skip it or run one test by hand.
 - **`pest --dirty`** runs only the test files that changed, not the tests for the code that changed.
 - **Pest's `--tia`** is precise but needs a coverage driver and a recorded baseline.
-- **PHPStan and Pint on a whole legacy app** bury the agent in errors it didn't cause.
+- **PHPStan and a code style tool on a whole legacy app** bury the agent in errors it didn't cause.
 - **Many Laravel failures never show up in a unit test.** A closure in `config/`, a broken
   `@forelse`, a typo in a migration, or a provider that no longer boots all slip past them.
 
@@ -94,7 +95,8 @@ than it sounds:
 | Boots Laravel in a fresh process for the subsystem you touched (`route:list`, `config:cache`, `about`, `event:list`) | Boot-time breakage is caught before a browser hits it |
 | Runs migrations' `up()`/`down()` in **pretend** mode | A typo in a migration fails here, not in production |
 | Compiles changed Blade views with your app's compiler and lints the result | An unclosed `@if` or `@forelse` is reported against the `.blade.php` file |
-| Blames only what **you** introduced: PHPStan errors on unchanged lines and Pint fixers the file already needed are reported as `pre-existing` and don't fail the run | Legacy debt doesn't block an agent's correct change |
+| Blames only what **you** introduced: PHPStan errors on unchanged lines and style rules the file already broke are reported as `pre-existing` and don't fail the run | Legacy debt doesn't block an agent's correct change |
+| Uses **your** code standard: `pint.json`, `.php-cs-fixer.php`, `phpcs.xml` or `ecs.php`, whichever the project has | The agent is held to the team's rules, not to a preset |
 | Guards **test integrity**: it fails if a changed test file lost tests or assertions, or gained `skip()`/`todo()`/`only()` | "Make the suite green by deleting the failing test" doesn't pass |
 | Applies a **coverage gap** rule: `pass` requires at least one check to have read at least one changed file | "Green" never means "nothing looked at it" |
 | Gives restart hints: `queue:restart`, `octane:reload`, stale `bootstrap/cache` | The agent knows that a passing verify doesn't mean running workers have the new code |
@@ -108,7 +110,20 @@ composer require --dev semitexa/laravel-ai-verify
 composer require --dev larastan/larastan    # optional: enables the PHPStan check
 ```
 
-Pint ships with Laravel and is used when present. Pest or PHPUnit is detected automatically.
+Pest or PHPUnit, and the project's code style tool (Pint, PHP-CS-Fixer, PHP_CodeSniffer or ECS),
+are detected automatically. `php artisan ai:verify:doctor` shows what was found:
+
+```text
+  semitexa/laravel-ai-verify 0.7.0  default scope: standard
+
+  ✓ Tests        phpunit in tests
+  ✓ Code style   PHP_CodeSniffer phpcs.xml.dist — found phpcs.xml.dist
+  ✓ Analysis     PHPStan phpstan.neon, with its baseline if it has one
+  ✓ Laravel      boot probes per changed kind (routes, config, events, providers)
+  ✓ Migrations   up()/down() in pretend mode
+  ✓ Test guard   fails on deleted, skipped or weakened tests
+  ✓ Command      rector vendor/bin/rector process --dry-run {files}  [when app/, standard]
+```
 
 ### Tell your agents
 
@@ -175,6 +190,8 @@ git diff --name-status HEAD~3 | php artisan ai:verify --diff-stdin
 php artisan ai:verify --scope=minimal          # seconds: syntax, Blade, JSON, changed tests
 php artisan ai:verify --scope=broad            # every boot probe + the whole suite
 php artisan ai:verify --impact                 # add a blast-radius report from the graph
+
+php artisan ai:verify:doctor                   # what ai:verify found in this project, and why
 ```
 
 Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
@@ -184,7 +201,7 @@ Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
 | Scope | Runs |
 |---|---|
 | `minimal` | `php -l` per PHP file, Blade compile, JSON validity, changed test files, test integrity |
-| `standard` (default) | + Pint and PHPStan on the changed files, related tests from the graph and naming, Laravel probes per kind, migration pretend-run |
+| `standard` (default) | + the project's code style tool and PHPStan on the changed files, related tests from the graph and naming, Laravel probes per kind, migration pretend-run, custom commands |
 | `broad` | + every Laravel probe and the whole test suite |
 
 `standard` widens to `broad` on its own when a contract, a service provider, `bootstrap/app.php` or
@@ -195,7 +212,7 @@ Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
 
 | Changed | Checks (standard scope) |
 |---|---|
-| any PHP file | `php -l`, Pint (only fixers new to this change fail the run) |
+| any PHP file | `php -l`, the project's code style tool (only rules new to this change fail the run) |
 | app code, factories, seeders, migrations | PHPStan/Larastan on those files (only errors on changed lines fail the run) |
 | controller, middleware, form request, `routes/*` | `route:list` in a fresh process, then every `route('…')` / `to_route('…')` / `redirect()->route('…')` must name an existing route (the whole project after a routes change) |
 | Blade view, mailable, notification, Livewire, view component | the same route-name check on the changed files |
@@ -211,6 +228,59 @@ Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
 | any source file | tests reachable within 4 graph hops, plus tests whose name contains the class name |
 
 Above `max_test_targets` (25) related test files, the whole suite runs once instead.
+
+### Your code style, not a preset
+
+Pint ships with every new Laravel app, so its presence says nothing about a team's rules. A config
+file does. `ai:verify` runs every tool whose config the project has:
+
+| Config file | Tool | Report-only run |
+|---|---|---|
+| `pint.json` | Pint | `pint --test --format=json` |
+| `.php-cs-fixer.php`, `.php-cs-fixer.dist.php` | PHP-CS-Fixer | `fix --dry-run --format=json` |
+| `phpcs.xml`, `.phpcs.xml`, `phpcs.xml.dist`, `.phpcs.xml.dist` | PHP_CodeSniffer | `phpcs --report=json` |
+| `ecs.php` | Easy Coding Standard | `ecs check --output-format=json` |
+
+With none of them, Pint's `laravel` preset applies if Pint is installed. If the config is there and
+its tool isn't (`phpcs.xml` without `vendor/bin/phpcs`), the check is skipped with that reason; it
+never falls back to Pint and holds the agent to someone else's style.
+
+Each changed file is also checked as it was at the base ref. A rule fails the run only when the
+change made the file break it more often; PHP_CodeSniffer warnings never fail it. The fix command
+for the tool in use comes back as the next step (`vendor/bin/phpcbf app/Foo.php`). To pick tools
+yourself, set `style` in the config: `'phpcs'`, `'pint,phpcs'` or `false`.
+
+### Custom checks
+
+Anything else the project already runs (Rector, Deptrac, Psalm, ESLint, a composer script) can join
+the verdict through `commands` in `config/ai-verify.php`:
+
+```php
+'commands' => [
+    'rector' => [
+        'run' => 'vendor/bin/rector process --dry-run --no-progress-bar {files}',
+        'when' => ['app/', 'database/'],
+    ],
+    'deptrac' => [
+        'run' => 'vendor/bin/deptrac analyse --no-progress',
+        'when' => ['app/'],
+        'scope' => 'broad',
+    ],
+    'eslint' => [
+        'run' => ['npx', 'eslint', '{files}'],
+        'when' => ['resources/js/*.ts', 'resources/js/*.vue'],
+    ],
+],
+```
+
+A command runs when a changed file matches `when` (path prefix or glob, `*` crosses directories;
+empty means any change) and the scope is at least its `scope` (default `standard`). `{files}`
+becomes the matched changed files, shell-quoted. A string runs through the shell, a list as
+arguments. The exit code is the verdict, and a failure brings the last 20 lines of output and the
+exact command to reproduce it. `required => false` turns "command not found" into a skip.
+
+Unlike the style check and PHPStan, `ai:verify` cannot tell an old failure from a new one in your
+command's output, so make sure it passes on your main branch, or give it a baseline.
 
 ## Output for agents
 
@@ -476,7 +546,12 @@ return [
     'timeout' => 120,
     'test_depth' => 4,              // graph hops when looking for related tests
     'max_test_targets' => 25,       // above this, run the suite once
-    'checks' => ['pint' => true, 'phpstan' => true, 'migrations' => true, 'test_integrity' => true],
+    'timeouts' => ['tests' => 600],  // per check: style, phpstan, tests, artisan, migration, composer, command
+    'ignore' => ['_ide_helper.php', 'public/build/'],               // changed files no check should see
+    'test_args' => ['--parallel'],  // passed to Pest / PHPUnit
+    'checks' => ['style' => true, 'phpstan' => true, 'migrations' => true, 'test_integrity' => true],
+    'style' => 'auto',              // or 'pint', 'php-cs-fixer', 'phpcs', 'ecs', a list, or false
+    'commands' => [],               // your own checks, see "Custom checks"
     'phpstan' => ['fallback_level' => 5, 'memory_limit' => '1G'],   // fallback: Larastan without a phpstan.neon
     'graph' => ['paths' => ['app', 'routes', 'database', 'tests', 'bootstrap/app.php'], 'views' => 'resources/views'],
     'kinds' => ['src/Billing/Gateways/' => 'contract'],             // your own path → kind rules
@@ -491,7 +566,8 @@ return [
 | **Pest / PHPUnit** | Run tests | Used as the runner. Results are read from JUnit XML. |
 | **Pest `--tia`** | Coverage-based test selection | A different trade-off: the graph needs no coverage driver and no baseline. |
 | **laravel/pao** | Compresses tool output for agents | Bypassed for child processes, so the structured reports stay parseable. |
-| **Larastan, Pint** | Static analysis and code style | Run on the changed files only. Only problems introduced by the change fail the run. |
+| **Larastan, Pint, PHP-CS-Fixer, PHP_CodeSniffer, ECS** | Static analysis and code style | Run on the changed files only, with the project's own config. Only problems introduced by the change fail the run. |
+| **Rector, Deptrac, Psalm, ESLint** | Whatever the project already runs | Added through `commands`; their exit code joins the verdict. |
 
 ## FAQ
 
@@ -560,10 +636,21 @@ Install the git hook (`php artisan ai:verify:install --git-hook`). When a commit
 field or method whose line stayed the same while a line just like it changed, the hook warns the
 agent before the commit exists, and CI annotates the line. See [Message vs diff](#message-vs-diff).
 
-### Larastan and Pint fail on my legacy code. Will the agent drown in errors?
+### Larastan and my style checker fail on legacy code. Will the agent drown in errors?
 
-No. Only problems on the lines this change touched fail the run. PHPStan errors elsewhere in the
-touched files, and Pint fixers the file already needed, are reported as `pre-existing` warnings.
+No. Only problems this change introduced fail the run. PHPStan errors elsewhere in the touched
+files, and style rules the file already broke, are reported as `pre-existing` warnings.
+
+### My project uses PHP-CS-Fixer, PHP_CodeSniffer or ECS, not Pint
+
+Then that is what runs. `ai:verify` picks the tool from its config file (`.php-cs-fixer.php`,
+`phpcs.xml`, `ecs.php`) and only uses Pint when the project has `pint.json` or no style config at
+all. `php artisan ai:verify:doctor` shows the choice and the reason.
+
+### How do I add Rector, Deptrac, Psalm or ESLint to the verdict?
+
+List them under `commands` in `config/ai-verify.php`, with `when` patterns for the files that
+should trigger them. See [Custom checks](#custom-checks).
 
 ### Does it work with Laravel Boost, Pest 4/5, PHPUnit, Octane, Horizon?
 

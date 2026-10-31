@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 - 2026-10-31
+
+- **Your code style, not a preset.** The style check now runs the tool the project has a config for: `pint.json` (Pint), `.php-cs-fixer.php` / `.php-cs-fixer.dist.php` (PHP-CS-Fixer), `phpcs.xml` and its variants (PHP_CodeSniffer) or `ecs.php` (Easy Coding Standard), several if there are several. Pint's `laravel` preset is used only when the project has no style config at all. Until now Pint ran whenever it was installed, which every new Laravel app is, so a project that keeps its rules in `.php-cs-fixer.php` got new files failed against someone else's style.
+  - A config without its tool (`phpcs.xml` but no `vendor/bin/phpcs`) is a skip with that reason, never a fallback to Pint.
+  - As before, only rules the change made a file break more often fail the run; PHP_CodeSniffer warnings never do. PHPCS and ECS violations carry their line and message.
+  - The next step names the tool's own fixer: `vendor/bin/php-cs-fixer fix`, `vendor/bin/phpcbf`, `vendor/bin/ecs check --fix`.
+  - New `style` option: `'auto'` (default), a tool name, a list or `false`.
+- **Custom checks.** `commands` in the config adds the project's own tools to the verdict: Rector, Deptrac, Psalm, ESLint, a composer script. Each has `run` (a shell command line or an argument list, with `{files}` for the matched changed files), `when` (path prefixes or globs), `scope`, `required` and `timeout`. The exit code is the verdict; a failure brings the last 20 lines of output and the command that reproduces it.
+- **`php artisan ai:verify:doctor`** shows what `ai:verify` found in the project and why: test runner, code style tool and the file that chose it, PHPStan config or Larastan fallback, custom commands, ignored paths, hooks, Boost MCP tools, and any problem in the setup. `--json` for agents. `php artisan about` lists the style tool too.
+- **More options:** `ignore` leaves generated files out of every check (`_ide_helper.php`, `public/build/`); `test_args` passes arguments to Pest or PHPUnit (`--parallel`); `timeouts` gives a slow check its own limit (`['tests' => 600]`).
+- Config warnings (an unknown style tool, a command without `run`) appear as `warning` events and in a new `warnings` list of the JSON envelope.
+- Compatibility: the style target keeps the tool name as its id (`pint`), but its `check` is now `style` instead of `pint`. `checks.pint => false` still turns the style check off; `checks.style` is the new name. In `kinds`, a pattern with `?` or `[` is now a glob too, not only one with `*`.
+- `SECURITY.md`: how to report a vulnerability and what the package runs. The test workflow pins its actions to commit SHAs and has read-only permissions.
+
 ## 0.6.0 - 2026-10-17
 
 - **MCP tools in Laravel Boost.** With Boost installed, its MCP server now offers `ai-verify`, `ai-graph` and `ai-verify-receipt` next to its own tools, so agents can ask for a verdict, a graph node or an impact report as a tool call instead of a shell command. They return the same JSON as the commands with `--json`; a `fail` verdict is an answer, not a tool error. Boost runs each call in a fresh process, so the tools always see the agent's latest edits. `ai-verify` takes `timeout` for long suites (Boost's default is 180 seconds).

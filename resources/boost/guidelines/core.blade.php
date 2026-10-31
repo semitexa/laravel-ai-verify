@@ -1,6 +1,6 @@
 ## Verifying changes (semitexa/laravel-ai-verify)
 
-- After every coherent change, run `php artisan ai:verify` before reporting the work as done. It plans and runs only the checks the change needs: syntax, Blade compile, Pint, Larastan, Laravel boot probes, migration pretend-run, and the related tests.
+- After every coherent change, run `php artisan ai:verify` before reporting the work as done. It plans and runs only the checks the change needs: syntax, Blade compile, the project's code style tool, Larastan, Laravel boot probes, migration pretend-run, the project's custom commands, and the related tests.
 - Read the last NDJSON line, `{"kind":"verdict",...}`:
     - `pass`: the change set is verified.
     - `fail`: fix each `violation` (it has `path`, `line`, `message` and often a `tip` with the fixing command), then re-run.

@@ -10,7 +10,7 @@ description: Verify a Laravel change before calling it done, and orient in an un
 1. Make a coherent change. That can be one fix or one feature slice; it doesn't have to be every file you will eventually touch.
 2. Run `php artisan ai:verify`. With no options it verifies uncommitted work: staged, unstaged and untracked files.
 3. Read the final line, `{"kind":"verdict","verdict":...}`.
-4. On `fail`, fix the `violation` events in order and go back to step 2. Each violation has `path`, `line`, `rule`, `message` and sometimes a `tip`, such as `vendor/bin/pint app/Foo.php`.
+4. On `fail`, fix the `violation` events in order and go back to step 2. Each violation has `path`, `line`, `rule`, `message` and sometimes a `tip`, such as `vendor/bin/pint app/Foo.php` or `vendor/bin/phpcbf app/Foo.php`. A `command.<name>` violation comes from a check the project added; its tip is the exact command to reproduce it.
 5. On `incomplete`, don't claim success. Check `unchecked_files` (nothing read those files) and any `result` with `status: incomplete` (timeout, crash, or a required tool missing). Fix the cause, or tell the user exactly what could not be verified.
 6. On `pass`, follow any `restart` hints (`queue:restart`, `octane:reload`, `config:clear`) before testing in a browser.
 
