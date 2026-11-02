@@ -18,7 +18,10 @@ use Semitexa\LaravelAiVerify\Support\ProcessRunner;
  *  - term:   the subject names something the changed files contain
  *            (`name` in StoreContactMessageRequest.php), yet no changed line
  *            touches it;
- *  - number: the subject gives a number (250) that no added line contains.
+ *  - number: the subject gives a number (250) that no added line contains;
+ *  - twin:   the line the subject names did change, but a line of the same
+ *            shape next to it got the identical edit and the subject never
+ *            mentions it (a find-and-replace that hit `name` and `email`).
  *
  * Words the changed files never mention are ignored, so prose like "tidy" or
  * "faster" cannot trip it.
@@ -35,6 +38,9 @@ final class CommitClaims
 
     /** How alike two lines' shapes must be to count as twins. */
     private const TWIN = 0.8;
+
+    /** The most tokens a collateral edit may swap: a value, not a rewrite. */
+    private const SWAP = 3;
 
     /**
      * Where a named thing can be missed: application code, Blade views included.
@@ -88,7 +94,7 @@ final class CommitClaims
     }
 
     /**
-     * @param  array<string, array{added: array<int, string>, removed: array<int, string>, at: int}>  $files  path => changed lines
+     * @param  array<string, array{added: array<int, string>, removed: array<int, string>, at: int, edits: list<array{line: int, old: string, new: string}>}>  $files  path => changed lines
      * @param  \Closure(string): ?string  $content  file content after the change
      * @return list<array<string, mixed>>
      */
@@ -122,8 +128,23 @@ final class CommitClaims
         $findings = [];
         $texts = [];
 
-        foreach (self::terms($subject) as $term) {
+        $terms = self::terms($subject);
+
+        foreach ($terms as $term) {
             if (self::known($term, $changed)) {
+                foreach ($files as $path => $lines) {
+                    if (! preg_match(self::CODE, $path) || preg_match(self::TESTS, $path)) {
+                        continue;
+                    }
+
+                    $pair = self::collateral($term, $terms, $lines['edits']);
+
+                    if ($pair !== null) {
+                        $findings[] = self::finding('twin', $term, $path, $pair[0], $files, $pair[1]);
+                        break;
+                    }
+                }
+
                 continue;
             }
 
@@ -156,7 +177,7 @@ final class CommitClaims
     /**
      * Changed lines per file from a `-U0` unified diff, with new-side line numbers.
      *
-     * @return array<string, array{added: array<int, string>, removed: array<int, string>, at: int}>
+     * @return array<string, array{added: array<int, string>, removed: array<int, string>, at: int, edits: list<array{line: int, old: string, new: string}>}>
      */
     public static function parseDiff(string $diff): array
     {
@@ -165,9 +186,24 @@ final class CommitClaims
         $old = '';
         $new = 0;
         $binary = false;
+        $hunk = null;
+
+        // A hunk that removes and adds the same number of lines rewrote them in place: pair them in order.
+        $flush = static function () use (&$files, &$hunk): void {
+            if ($hunk !== null && $hunk['removed'] !== [] && count($hunk['removed']) === count($hunk['added'])) {
+                $i = 0;
+
+                foreach ($hunk['added'] as $line => $text) {
+                    $files[$hunk['path']]['edits'][] = ['line' => $line, 'old' => $hunk['removed'][$i++], 'new' => $text];
+                }
+            }
+
+            $hunk = null;
+        };
 
         foreach (explode("\n", $diff) as $line) {
             if (str_starts_with($line, 'diff --git ')) {
+                $flush();
                 $path = null;
                 $binary = false;
             } elseif (str_starts_with($line, 'Binary files ')) {
@@ -177,16 +213,22 @@ final class CommitClaims
             } elseif (str_starts_with($line, '+++ ')) {
                 $target = substr($line, 4);
                 $path = $target === '/dev/null' ? $old : (string) preg_replace('#^b/#', '', $target);
-                $files[$path] ??= ['added' => [], 'removed' => [], 'at' => 0];
+                $files[$path] ??= ['added' => [], 'removed' => [], 'at' => 0, 'edits' => []];
             } elseif ($path !== null && ! $binary && preg_match('/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/', $line, $m)) {
+                $flush();
                 $new = (int) $m[1];
                 $files[$path]['at'] = $files[$path]['at'] ?: max(1, $new);
+                $hunk = ['path' => $path, 'removed' => [], 'added' => []];
             } elseif ($path !== null && ! $binary && str_starts_with($line, '+')) {
+                $hunk['added'][$new] = substr($line, 1);
                 $files[$path]['added'][$new++] = substr($line, 1);
             } elseif ($path !== null && ! $binary && str_starts_with($line, '-')) {
+                $hunk['removed'][] = substr($line, 1);
                 $files[$path]['removed'][max(1, $new)] = substr($line, 1);
             }
         }
+
+        $flush();
 
         return $files;
     }
@@ -271,7 +313,7 @@ final class CommitClaims
      * the same shape as a changed line that does not. `'name' => [...]` left
      * alone while its twin `'email' => [...]` changed is exactly that.
      *
-     * @param  array{added: array<int, string>, removed: array<int, string>, at: int}  $lines
+     * @param  array{added: array<int, string>, removed: array<int, string>, at: int, edits: list<array{line: int, old: string, new: string}>}  $lines
      * @return array{0: int, 1: int}|null [line naming the term, changed line]
      */
     private static function sibling(string $term, string $content, array $lines): ?array
@@ -311,6 +353,89 @@ final class CommitClaims
         return $best !== null ? [$best[0], $best[1]] : null;
     }
 
+    /**
+     * The collateral slip: the named line did change, and a line of the same
+     * shape next to it got the identical edit (`255` to `250`) although the
+     * subject never names it. A find-and-replace that hit both `'name'` and
+     * `'email'` is exactly that. A line the subject also names, by a word the
+     * named line lacks, is part of the claim and does not count.
+     *
+     * @param  list<string>  $terms  every term of the subject
+     * @param  list<array{line: int, old: string, new: string}>  $edits
+     * @return array{0: int, 1: int}|null [line naming the term, its twin]
+     */
+    private static function collateral(string $term, array $terms, array $edits): ?array
+    {
+        $forms = array_flip(self::forms($term));
+        $best = null;
+
+        foreach ($edits as $named) {
+            $namedWords = array_flip([...self::words($named['old']), ...self::words($named['new'])]);
+            $edit = self::edit($named['old'], $named['new']);
+
+            if (array_intersect_key($forms, $namedWords) === [] || $edit === null || strlen(self::shape($named['new'])) < 4) {
+                continue;
+            }
+
+            foreach ($edits as $other) {
+                if ($other['line'] === $named['line'] || abs($other['line'] - $named['line']) > self::NEAR || self::edit($other['old'], $other['new']) !== $edit) {
+                    continue;
+                }
+
+                $otherWords = array_flip([...self::words($other['old']), ...self::words($other['new'])]);
+
+                if (array_intersect_key($forms, $otherWords) !== []) {
+                    continue;
+                }
+
+                foreach ($terms as $t) {
+                    if (self::known($t, $otherWords) && ! self::known($t, $namedWords)) {
+                        continue 2;
+                    }
+                }
+
+                $a = self::shape($named['new']);
+                $b = self::shape($other['new']);
+
+                if (1 - levenshtein($a, $b) / max(strlen($a), strlen($b)) < self::TWIN) {
+                    continue;
+                }
+
+                if ($best === null || abs($other['line'] - $named['line']) < abs($best[1] - $best[0])) {
+                    $best = [$named['line'], $other['line']];
+                }
+            }
+        }
+
+        return $best;
+    }
+
+    /** What an in-place edit swapped, as tokens without the common prefix and suffix; null unless it is a short swap of a word or number. */
+    private static function edit(string $old, string $new): ?string
+    {
+        preg_match_all('/\w+|[^\s\w]/u', $old, $o);
+        preg_match_all('/\w+|[^\s\w]/u', $new, $n);
+        [$o, $n] = [$o[0], $n[0]];
+
+        while ($o !== [] && $n !== [] && $o[0] === $n[0]) {
+            array_shift($o);
+            array_shift($n);
+        }
+
+        while ($o !== [] && $n !== [] && end($o) === end($n)) {
+            array_pop($o);
+            array_pop($n);
+        }
+
+        // A find-and-replace swaps a short value for one of the same length (`255` for `250`).
+        // An added parameter or a wrapping call is a deliberate change carried to its siblings.
+        if ($o === [] || count($o) !== count($n) || count($o) > self::SWAP || preg_grep('/\w/u', [...$o, ...$n]) === []) {
+            return null;
+        }
+
+        return implode(' ', $o)."\x1f".implode(' ', $n);
+    }
+
     /** A line as a string of token kinds: names, strings and numbers collapse, punctuation stays. */
     private static function shape(string $line): string
     {
@@ -325,7 +450,7 @@ final class CommitClaims
     }
 
     /**
-     * @param  array<string, array{added: array<int, string>, removed: array<int, string>, at: int}>  $files
+     * @param  array<string, array{added: array<int, string>, removed: array<int, string>, at: int, edits: list<array{line: int, old: string, new: string}>}>  $files
      * @return array<string, mixed>
      */
     private static function finding(string $kind, string $term, ?string $path, ?int $line, array $files, ?int $twin = null): array
@@ -337,9 +462,11 @@ final class CommitClaims
         $changedText = trim((string) ($lines['added'][$changedLine] ?? $lines['removed'][$changedLine] ?? reset($lines['removed']) ?: ''));
         $excerpt = mb_strlen($changedText) > 80 ? mb_substr($changedText, 0, 77).'…' : $changedText;
 
-        $message = $kind === 'term'
-            ? sprintf('The subject names `%s`, but its line %s:%d is unchanged; the change went to the similar line %d', $term, $path, $line, $changedLine)
-            : sprintf('The subject says %s, but no added line contains it; the change is at %s:%d', $term, $at, $changedLine);
+        $message = match ($kind) {
+            'term' => sprintf('The subject names `%s`, but its line %s:%d is unchanged; the change went to the similar line %d', $term, $path, $line, $changedLine),
+            'twin' => sprintf('The subject names `%s` (line %s:%d), but the same edit also went to the similar line %d, which it does not mention', $term, $path, $line, $changedLine),
+            default => sprintf('The subject says %s, but no added line contains it; the change is at %s:%d', $term, $at, $changedLine),
+        };
         $message .= $excerpt !== '' ? sprintf(': `%s`', $excerpt) : '.';
 
         return [

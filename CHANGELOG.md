@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 - 2026-11-02
+
+- **Message vs diff catches the collateral slip.** Until now the check stopped looking once the line the subject names had changed, so a find-and-replace of `max:255` that hit both `'name'` and its neighbour `'email'` passed under "Limit contact name to 250 chars", with a green receipt. Now the same short swap on a line of the same shape within 12 lines that the subject does not mention is flagged too (`kind: twin`): "The subject names `name` (line ...:10), but the same edit also went to the similar line 11, which it does not mention". A twin the subject also names is part of the claim; an added parameter or a wrapping call carried to sibling lines is not a swap. Reported by a reader on dev.to.
+  - Measured before shipping: on 886 recent commits from five of our PHP repositories it added no flags (19 before and after); on their whole history, 2,332 commits, it added one (46 to 47), a variable rename in a refactor.
+
 ## 0.7.1 - 2026-10-31
 
 - **The Stop hook checks the fix, not only the first attempt.** Until now it let Claude stop whenever Claude Code reported `stop_hook_active`, that is, on any stop after a first block, so a half-done fix (the controller updated, the tests still calling the old route name) went through unchecked. Now it verifies again whenever the tree changed since the last verdict and blocks again on `fail`. It still lets Claude stop when nothing changed since the block, and after 5 blocks in one continuation, below Claude Code's own cap of 8 consecutive continuations.

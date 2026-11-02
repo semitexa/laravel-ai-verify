@@ -392,8 +392,12 @@ ai-verify: the commit message may not describe this change:
 
 - **What it flags.** A word in the subject names something in a changed code file, and that line
   is left alone while a line of the same shape within 12 lines of it changed. That is the
-  wrong-line slip: `'name' => [...]` untouched, its twin `'email' => [...]` edited. It also flags a
-  number in the subject that no added line contains, such as `200` when the diff writes `250`.
+  wrong-line slip: `'name' => [...]` untouched, its twin `'email' => [...]` edited. It also flags
+  the collateral slip: the named line did change, but the same short swap (`255` to `250`) also
+  landed on a line of the same shape within 12 lines that the subject does not mention, as when a
+  find-and-replace hits both rules. A twin the subject also names is part of the claim, and an added
+  parameter or a wrapping call carried to sibling lines is not a swap. And it flags a number in the
+  subject that no added line contains, such as `200` when the diff writes `250`.
 - **What it ignores.** Words the changed code never mentions; prose, JSON, YAML, Twig and HTML
   files; tests; merges, reverts, and commits touching more than 25 files. PHP files, Blade views
   included, are read. Across 937 commits from five of our PHP repositories it flagged 23 (2.5%),
