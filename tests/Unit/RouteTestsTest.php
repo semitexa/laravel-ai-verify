@@ -153,8 +153,8 @@ final class RouteTestsTest extends TestCase
     public static function requests(): array
     {
         return [
-            'concatenated' => ["/posts/{post}/edit", "\$this->get('/posts/'.\$post->id.'/edit');"],
-            'interpolated' => ["/posts/{post}/edit", "\$this->get(\"/posts/{\$post->id}/edit\");"],
+            'concatenated' => ['/posts/{post}/edit', "\$this->get('/posts/'.\$post->id.'/edit');"],
+            'interpolated' => ['/posts/{post}/edit', '$this->get("/posts/{$post->id}/edit");'],
             'query string' => ['/search', "\$this->get('/search?q=a');"],
             'no leading slash' => ['/search', "\$this->get('search');"],
             'json' => ['/api/items', "\$this->postJson('/api/items', []);"],

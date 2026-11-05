@@ -54,7 +54,7 @@ final class RouteTests
 
     /**
      * @param  list<ChangedFile>  $routeFiles
-     * @return array<string, list<string>>  test path => the route files that sent us to it
+     * @return array<string, list<string>> test path => the route files that sent us to it
      */
     public function testsFor(array $routeFiles, string $ref): array
     {
