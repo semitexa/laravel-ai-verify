@@ -13,7 +13,7 @@ use Semitexa\LaravelAiVerify\Verify\Checks\ArtisanCheck;
  * still vouch for it.
  *
  *   minimal  — syntax, Blade compile, JSON validity, changed tests, test integrity
- *   standard — + the project's style tool, PHPStan, related tests (graph + naming), Laravel probes per kind
+ *   standard — + the project's style tool, PHPStan, related tests (graph, naming, changed routes), Laravel probes per kind
  *   broad    — + every Laravel probe and the whole test suite
  *
  * Custom commands from the config join at the scope they ask for, when one
@@ -57,6 +57,7 @@ final class Planner
         private readonly array $options = [],
         private readonly ?string $gitRef = null,
         private readonly bool $hasGit = true,
+        private readonly ?RouteTests $routeTests = null,
     ) {}
 
     /** @param list<ChangedFile> $files */
@@ -262,6 +263,15 @@ final class Planner
             $sourcePaths = [...$sourcePaths, ...array_map(static fn (ChangedFile $f) => $f->path, $sources)];
 
             foreach ($this->impact->testsFor(array_values(array_unique($sourcePaths)), $depth) as $test => $triggers) {
+                $testTargets[$test] = [...($testTargets[$test] ?? []), ...$triggers];
+            }
+        }
+
+        // Tests that request a changed route: the graph cannot get there from a route file.
+        $routeFiles = array_values(array_filter($files, static fn (ChangedFile $f) => $f->kind === FileKind::Route));
+
+        if ($this->routeTests !== null && $routeFiles !== []) {
+            foreach ($this->routeTests->testsFor($routeFiles, $this->gitRef ?? 'HEAD') as $test => $triggers) {
                 $testTargets[$test] = [...($testTargets[$test] ?? []), ...$triggers];
             }
         }

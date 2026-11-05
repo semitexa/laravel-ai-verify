@@ -23,11 +23,12 @@ For PHP 8.3+ and Laravel 12 or 13:
 
 ```bash
 composer require --dev semitexa/laravel-ai-verify
-php artisan ai:verify:install --hook --git-hook
+php artisan ai:verify:install --hook --git-hook --larastan
 ```
 
 `--hook` keeps Claude Code from finishing while `ai:verify` fails. `--git-hook` stamps verified
 commits and warns when a commit message doesn't match its diff ([message vs diff](#message-vs-diff)).
+`--larastan` installs Larastan, without which no static analysis runs.
 
 ![Tests pass and the commit says "name", but the diff changed the email rule; the git hook flags it before the commit exists](https://raw.githubusercontent.com/semitexa/laravel-ai-verify/main/art/message-vs-diff.gif)
 
@@ -53,8 +54,8 @@ $ php artisan ai:verify
   5 check(s) over 1 changed file(s); every file was read by at least one check
 ```
 
-The PHPStan line needs Larastan (`composer require --dev larastan/larastan`); without it the
-check is reported as skipped with that install command. Note that this run did **not** execute the whole suite and did **not** run PHPStan on the whole
+The PHPStan line needs Larastan (`ai:verify:install --larastan`); without it the check is skipped,
+and the verdict headline and `gaps` say so. Note that this run did **not** execute the whole suite and did **not** run PHPStan on the whole
 app. It followed the change. The edited controller handles `GET /posts/{post}`, and
 `tests/Feature/PostTest.php` requests that URI, so that is the test that runs.
 
@@ -107,8 +108,12 @@ Requires PHP 8.3+ and Laravel 12 or 13.
 
 ```bash
 composer require --dev semitexa/laravel-ai-verify
-composer require --dev larastan/larastan    # optional: enables the PHPStan check
+php artisan ai:verify:install --larastan    # runs composer require --dev larastan/larastan, enabling the PHPStan check
 ```
+
+Without a terminal the installer doesn't touch `composer.json`: it prints a warning unless you pass
+`--larastan` or `--no-larastan`. In a terminal it asks. Projects with their own `phpstan.neon` aren't
+asked, since `ai:verify` uses that config.
 
 Pest or PHPUnit, and the project's code style tool (Pint, PHP-CS-Fixer, PHP_CodeSniffer or ECS),
 are detected automatically. `php artisan ai:verify:doctor` shows what was found:
@@ -133,6 +138,7 @@ An agent only uses a tool it knows about. One command puts the instructions wher
 php artisan ai:verify:install          # AGENTS.md + CLAUDE.md, the files of agents you already use, and skills
 php artisan ai:verify:install --hook   # also: Claude Code may not finish while ai:verify fails
 php artisan ai:verify:install --git-hook   # also: verified commits get an AI-Verify trailer CI can check
+php artisan ai:verify:install --larastan   # also: install Larastan, so static analysis runs
 ```
 
 ```text
@@ -227,6 +233,7 @@ Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
 | `tests/**/*Test.php` | runs itself, plus a test-integrity check against the base ref |
 | `tests/TestCase.php`, `tests/Pest.php`, fixtures | the nearest test directory, or the whole suite |
 | any source file | tests reachable within 4 graph hops, plus tests whose name contains the class name |
+| `routes/*.php` | tests that request a changed route, by its old or new name or URI |
 
 Above `max_test_targets` (25) related test files, the whole suite runs once instead.
 
@@ -304,8 +311,8 @@ Event kinds, in order: `summary`, `file`, `impact`, `expansion`, `warning`, `tar
 `path`, `line`, `rule`, `message`, `severity` and, when available, a `tip` with the command that fixes it.
 
 `--json` prints one envelope (schema `semitexa.laravel-ai-verify/v1`) with the same data plus
-`files`, `targets`, `results`, `violations`, `counts` and `unchecked_files`. `--human` forces the
-terminal view.
+`files`, `targets`, `results`, `violations`, `counts`, `unchecked_files` and `gaps`. `--human` forces
+the terminal view.
 
 ### Verdict rules
 
@@ -316,7 +323,9 @@ terminal view.
 5. Otherwise → `pass`. If no content-reading check reached a result on **any** changed file
    (for example, only a README changed), `pass` is downgraded to `incomplete`.
 
-Files that no check read are always listed in `unchecked_files` and in the headline.
+Files that no check read are always listed in `unchecked_files` and in the headline. Optional checks
+that were skipped keep the verdict, but `gaps` lists them with the reason and the headline ends in
+`did not run: phpstan`, so a `pass` without static analysis doesn't read like a full one.
 
 ## Receipts: "verified" you can check
 

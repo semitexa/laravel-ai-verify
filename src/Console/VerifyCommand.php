@@ -16,6 +16,7 @@ use Semitexa\LaravelAiVerify\Verify\ChangedFile;
 use Semitexa\LaravelAiVerify\Verify\Planner;
 use Semitexa\LaravelAiVerify\Verify\Report;
 use Semitexa\LaravelAiVerify\Verify\Result;
+use Semitexa\LaravelAiVerify\Verify\RouteTests;
 use Semitexa\LaravelAiVerify\Verify\Scope;
 use Semitexa\LaravelAiVerify\Verify\Target;
 use Semitexa\LaravelAiVerify\Verify\TestLocator;
@@ -102,12 +103,14 @@ final class VerifyCommand extends Command
         $useGraph = ! $this->option('no-graph') && ($toolkit->config['graph']['enabled'] ?? true)
             && ($scope !== Scope::Minimal || $this->option('impact'));
 
+        $tests = new TestLocator($toolkit->workspace, (string) ($toolkit->config['tests_path'] ?? 'tests'));
         $planner = new Planner(
-            new TestLocator($toolkit->workspace, (string) ($toolkit->config['tests_path'] ?? 'tests')),
+            $tests,
             $useGraph ? $toolkit->impact() : null,
             $toolkit->plannerOptions(),
             $this->option('git-ref') ?: null,
             is_dir($toolkit->workspace->path('.git')) || $source !== 'files',
+            new RouteTests($toolkit->workspace, $toolkit->runner, $tests),
         );
 
         $plan = $planner->plan($files, $scope);
@@ -200,6 +203,7 @@ final class VerifyCommand extends Command
                 'counts' => $report->counts,
                 'headline' => $report->headline,
                 'unchecked_files' => $report->uncheckedFiles,
+                'gaps' => $report->gaps,
                 'impact' => $impact,
                 'restart' => $restart,
                 'next' => $next,
@@ -222,7 +226,7 @@ final class VerifyCommand extends Command
         }
 
         $this->emit(['kind' => 'verdict', 'verdict' => $report->verdict, 'counts' => $report->counts,
-            'headline' => $report->headline, 'unchecked_files' => $report->uncheckedFiles]);
+            'headline' => $report->headline, 'unchecked_files' => $report->uncheckedFiles, 'gaps' => $report->gaps]);
 
         if ($this->option('github')) {
             $this->github($report, $results, $receiptRef);

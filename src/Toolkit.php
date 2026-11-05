@@ -22,7 +22,7 @@ use Semitexa\LaravelAiVerify\Verify\Style\StyleDetector;
  */
 final class Toolkit
 {
-    public const VERSION = '0.8.0';
+    public const VERSION = '0.9.0';
 
     public const HOMEPAGE = 'https://semitexa.com';
 

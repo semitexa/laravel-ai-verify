@@ -2,7 +2,7 @@
 
 - After every coherent change, run `php artisan ai:verify` before reporting the work as done. It plans and runs only the checks the change needs: syntax, Blade compile, the project's code style tool, Larastan, Laravel boot probes, migration pretend-run, the project's custom commands, and the related tests.
 - Read the last NDJSON line, `{"kind":"verdict",...}`:
-    - `pass`: the change set is verified.
+    - `pass`: the change set is verified, except for any check listed in `gaps`. Name those checks when you report the result.
     - `fail`: fix each `violation` (it has `path`, `line`, `message` and often a `tip` with the fixing command), then re-run.
     - `incomplete`: something could not be verified. Read `unchecked_files` and the `incomplete` results. Do not report the task as done.
 - Violations marked `severity: warning` or `pre-existing` were already in the code before the change. They do not fail the run.

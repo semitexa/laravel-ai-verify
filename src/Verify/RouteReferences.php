@@ -26,6 +26,18 @@ final class RouteReferences
     public function __construct(private readonly Workspace $workspace) {}
 
     /**
+     * Route names the code refers to.
+     *
+     * @return list<string>
+     */
+    public static function names(string $code): array
+    {
+        preg_match_all(self::PATTERN, $code, $matches);
+
+        return array_values(array_unique($matches[2]));
+    }
+
+    /**
      * @param  list<string>  $knownNames  route names that exist
      * @param  list<string>|null  $files  relative paths to scan; null = the whole project
      * @return list<Violation>

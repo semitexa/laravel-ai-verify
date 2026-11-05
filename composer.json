@@ -59,6 +59,7 @@
         "symfony/process": "^7.2|^8.0"
     },
     "suggest": {
+        "larastan/larastan": "Enables the PHPStan check; without it ai:verify runs no static analysis",
         "laravel/boost": "Offers ai-verify, ai-graph and ai-verify-receipt as MCP tools in Boost's MCP server"
     },
     "require-dev": {

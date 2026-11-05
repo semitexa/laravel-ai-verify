@@ -66,6 +66,27 @@ final class ReportTest extends TestCase
         $this->assertSame('incomplete', $none->verdict, 'pass with zero files actually read is not a pass');
     }
 
+    public function test_a_skipped_optional_check_is_named_without_changing_the_verdict(): void
+    {
+        $report = $this->report([
+            $this->bound(Result::pass('ok')),
+            $this->bound(Result::skipped('PHPStan is not installed'), check: 'phpstan', required: false),
+        ]);
+
+        $this->assertSame('pass', $report->verdict);
+        $this->assertSame(0, $report->exitCode());
+        $this->assertSame([['check' => 'phpstan', 'why' => 'PHPStan is not installed']], $report->gaps);
+        $this->assertStringEndsWith('; did not run: phpstan', $report->headline);
+    }
+
+    public function test_a_full_run_has_no_gaps(): void
+    {
+        $report = $this->report([$this->bound(Result::pass('ok'))]);
+
+        $this->assertSame([], $report->gaps);
+        $this->assertStringNotContainsString('did not run', $report->headline);
+    }
+
     public function test_next_commands_point_at_the_fix(): void
     {
         $style = static fn (string $tool) => Result::fail('style', [new Violation('x', 'app/A.php', null, $tool)])

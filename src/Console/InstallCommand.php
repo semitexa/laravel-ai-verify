@@ -10,6 +10,7 @@ use Semitexa\LaravelAiVerify\Agents\ClaudeHook;
 use Semitexa\LaravelAiVerify\Agents\GitCommitHook;
 use Semitexa\LaravelAiVerify\Support\ProcessRunner;
 use Semitexa\LaravelAiVerify\Support\Workspace;
+use Semitexa\LaravelAiVerify\Verify\Checks\PhpstanCheck;
 
 /**
  * Teaches the project's coding agents to verify their work:
@@ -17,6 +18,7 @@ use Semitexa\LaravelAiVerify\Support\Workspace;
  *   php artisan ai:verify:install             # AGENTS.md, CLAUDE.md, + files of agents already in use, + skills
  *   php artisan ai:verify:install --hook      # also stop Claude Code from finishing while ai:verify fails
  *   php artisan ai:verify:install --git-hook  # also add the AI-Verify trailer to verified commits (any agent, any human)
+ *   php artisan ai:verify:install --larastan  # also install Larastan, without which no static analysis runs
  *   php artisan ai:verify:install --all       # create files for every supported agent
  *   php artisan ai:verify:install --remove    # take it all out again
  */
@@ -25,6 +27,8 @@ final class InstallCommand extends Command
     protected $signature = 'ai:verify:install
         {--hook : Also add a Claude Code Stop hook that runs ai:verify before the agent may finish}
         {--git-hook : Also add a prepare-commit-msg git hook that adds the AI-Verify trailer to verified commits}
+        {--larastan : Also install Larastan with composer; without it ai:verify runs no static analysis}
+        {--no-larastan : Do not ask about Larastan}
         {--all : Create instruction files for every supported agent, not only the ones the project already uses}
         {--remove : Remove the instructions, skills and hooks}
         {--force : Write the instructions even when Laravel Boost already ships them}
@@ -77,6 +81,8 @@ final class InstallCommand extends Command
             ));
         }
 
+        $withLarastan = ! $remove && $this->wantsLarastan($workspace, $dryRun);
+
         if ($dryRun) {
             $this->newLine();
             $this->line('  <fg=gray>Dry run — nothing written.</>');
@@ -93,6 +99,10 @@ final class InstallCommand extends Command
 
         if ($withGitHook) {
             $remove ? $gitHook->remove() : $gitHook->install();
+        }
+
+        if ($withLarastan) {
+            $this->installLarastan($workspace);
         }
 
         $this->newLine();
@@ -113,5 +123,54 @@ final class InstallCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * A skipped analysis leaves the verdict at pass, and agents do not act on a
+     * hint to add a dependency: 31 of 31 such hints went unused across 33 agent
+     * sessions in our benchmark. So the question is asked here, of the person installing.
+     */
+    private function wantsLarastan(Workspace $workspace, bool $dryRun): bool
+    {
+        $enabled = (bool) ($this->laravel['config']->get('ai-verify.checks.phpstan') ?? true);
+
+        if ($this->option('no-larastan') || ! PhpstanCheck::unavailable($workspace) || (! $enabled && ! $this->option('larastan'))) {
+            return false;
+        }
+
+        if ($dryRun) {
+            if ($this->option('larastan')) {
+                $this->line(sprintf('  <fg=green>%-9s</> larastan/larastan <fg=gray>: composer require --dev</>', 'install'));
+            }
+
+            return false;
+        }
+
+        if ($this->option('larastan')) {
+            return true;
+        }
+
+        if ($this->input->isInteractive()) {
+            return $this->confirm('Larastan is not installed, so ai:verify would run no static analysis. Install it now?', true);
+        }
+
+        $this->line('  <fg=yellow>!</> Larastan is not installed, so ai:verify runs no static analysis. Add --larastan, or --no-larastan to leave it out.');
+
+        return false;
+    }
+
+    private function installLarastan(Workspace $workspace): void
+    {
+        $outcome = (new ProcessRunner($workspace->basePath))->withTimeout(600)
+            ->run(['composer', 'require', '--dev', 'larastan/larastan', '--no-interaction']);
+
+        if ($outcome->succeeded()) {
+            $this->line(sprintf('  <fg=green>%-9s</> larastan/larastan <fg=gray>: ai:verify now analyses changed code</>', 'installed'));
+
+            return;
+        }
+
+        $this->line('  <fg=yellow>!</> composer could not install Larastan: '.$outcome->lastLine());
+        $this->line('    <fg=gray>Run composer require --dev larastan/larastan yourself; until then ai:verify runs no static analysis.</>');
     }
 }

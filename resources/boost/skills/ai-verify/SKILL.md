@@ -12,7 +12,7 @@ description: Verify a Laravel change before calling it done, and orient in an un
 3. Read the final line, `{"kind":"verdict","verdict":...}`.
 4. On `fail`, fix the `violation` events in order and go back to step 2. Each violation has `path`, `line`, `rule`, `message` and sometimes a `tip`, such as `vendor/bin/pint app/Foo.php` or `vendor/bin/phpcbf app/Foo.php`. A `command.<name>` violation comes from a check the project added; its tip is the exact command to reproduce it.
 5. On `incomplete`, don't claim success. Check `unchecked_files` (nothing read those files) and any `result` with `status: incomplete` (timeout, crash, or a required tool missing). Fix the cause, or tell the user exactly what could not be verified.
-6. On `pass`, follow any `restart` hints (`queue:restart`, `octane:reload`, `config:clear`) before testing in a browser.
+6. On `pass`, check `gaps`: those checks did not run, so say which ones when you report the result. Adding a dependency such as Larastan is the project owner's decision, so mention it rather than installing it unasked. Then follow any `restart` hints (`queue:restart`, `octane:reload`, `config:clear`) before testing in a browser.
 
 ## As MCP tools (Laravel Boost)
 

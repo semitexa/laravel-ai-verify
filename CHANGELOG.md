@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 - 2026-11-05
+
+- **Static analysis no longer goes missing without anyone noticing.** We ran `ai:verify` through 33 agent sessions in a benchmark and found PHPStan had been skipped in all of them: Larastan wasn't installed, the verdict was still `pass`, and agents left all 31 `next` hints to install it unused.
+  - `ai:verify:install --larastan` installs Larastan with composer. In a terminal the installer asks; without one it prints a warning and leaves `composer.json` alone. `--no-larastan` skips the question. Projects where analysis already works, or with `checks.phpstan` off, aren't asked.
+  - A skipped optional check keeps the verdict but no longer looks like a full pass: the headline ends in `did not run: phpstan`, and the verdict event and the JSON envelope carry a new `gaps` list with the reason.
+  - The agent skill and guideline tell agents to name `gaps` when they report, and to leave adding a dependency to the project owner.
+- **Changing a route runs the tests that request it.** The graph reaches tests through controllers, so a change in `routes/*.php` planned no test for it. A renamed route was still caught by the route-name check, but a changed URI wasn't caught at all: `/contact` became `/contact-us`, and a test requesting `/contact` never ran.
+  - The route file is compared with the base ref statement by statement. Tests are matched on the old and new name or URI: `route('x')`, `->get('/x')`, Pest's `get('/x')`, `->json('POST', '/x')`, `assertRedirect('/x')`, including `'/posts/'.$id` and `"/posts/{$id}"`.
+  - Multi-line chains count as one route, `Route::resource` as its family, and a changed `prefix` as everything under it. Comments and reformatting change nothing. Routes made only of parameters (`/{slug}`) are not matched, because under a group prefix they would match the end of any URI.
+  - Measured before shipping: on 559 commits touching `routes/*.php` in five of our Laravel repositories, it added tests to 137 of them, 3.4 test files each on average, 30 at most. Above `max_test_targets` the whole suite runs, as before. How many of those tests would have failed wasn't measured.
+
 ## 0.8.0 - 2026-11-02
 
 - **Message vs diff catches the collateral slip.** Until now the check stopped looking once the line the subject names had changed, so a find-and-replace of `max:255` that hit both `'name'` and its neighbour `'email'` passed under "Limit contact name to 250 chars", with a green receipt. Now the same short swap on a line of the same shape within 12 lines that the subject does not mention is flagged too (`kind: twin`): "The subject names `name` (line ...:10), but the same edit also went to the similar line 11, which it does not mention". A twin the subject also names is part of the claim; an added parameter or a wrapping call carried to sibling lines is not a swap. Reported by a reader on dev.to.

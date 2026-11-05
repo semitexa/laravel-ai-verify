@@ -20,6 +20,9 @@ use Semitexa\LaravelAiVerify\Verify\Style\StyleDetector;
  * then the coverage gap: if no content-reading check reached a verdict on
  * *any* changed file, pass/skipped is downgraded to incomplete. "Green" must
  * mean "something actually looked at this change".
+ *
+ * A pass can still rest on less than the plan: an optional check that was
+ * skipped keeps the verdict, and is named in `gaps` and in the headline.
  */
 final class Report
 {
@@ -35,6 +38,9 @@ final class Report
 
     /** @var list<array{path: string, kind: string}> */
     public array $uncheckedFiles = [];
+
+    /** @var list<array{check: string, why: string}> */
+    public array $gaps = [];
 
     public string $headline;
 
@@ -55,6 +61,7 @@ final class Report
 
         $this->verdict = $this->rollup();
         $this->applyCoverageGap();
+        $this->applySkippedChecks();
     }
 
     public function exitCode(): int
@@ -184,6 +191,21 @@ final class Report
         }
 
         return $this->counts['pass'] === 0 ? Result::SKIPPED : Result::PASS;
+    }
+
+    private function applySkippedChecks(): void
+    {
+        foreach ($this->results as $result) {
+            if ($result->effectiveStatus() === Result::SKIPPED) {
+                $this->gaps[$result->id] = ['check' => $result->check, 'why' => $result->signal];
+            }
+        }
+
+        $this->gaps = array_values($this->gaps);
+
+        if ($this->gaps !== []) {
+            $this->headline .= '; did not run: '.implode(', ', array_unique(array_column($this->gaps, 'check')));
+        }
     }
 
     private function applyCoverageGap(): void

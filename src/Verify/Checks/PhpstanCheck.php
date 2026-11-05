@@ -27,6 +27,22 @@ final class PhpstanCheck implements Check
         private readonly string $memoryLimit = '1G',
     ) {}
 
+    /** Whether a run in this project would be a skip: no PHPStan, or plain PHPStan with no config. */
+    public static function unavailable(Workspace $workspace): bool
+    {
+        if ($workspace->bin('phpstan') === null) {
+            return true;
+        }
+
+        foreach (self::CONFIGS as $name) {
+            if ($workspace->exists($name)) {
+                return false;
+            }
+        }
+
+        return ! is_file($workspace->path('vendor/larastan/larastan/extension.neon'));
+    }
+
     public function run(Target $target): Result
     {
         $phpstan = $this->workspace->bin('phpstan');
