@@ -49,7 +49,7 @@ final class Planner
      * empty list still plans one `style` target, so the verdict says why no
      * style check ran.
      *
-     * @param  array{broad_threshold?: int, max_test_targets?: int, test_depth?: int, style?: bool, style_tools?: list<string>, phpstan?: bool, migrations?: bool, test_integrity?: bool, commands?: list<array{name: string, run: string|list<string>, when: list<string>, scope: string, required: bool, timeout: ?int}>}  $options
+     * @param  array{broad_threshold?: int, max_test_targets?: int, test_depth?: int, style?: bool, style_tools?: list<string>, phpstan?: bool, migrations?: bool, advisories?: bool, test_integrity?: bool, commands?: list<array{name: string, run: string|list<string>, when: list<string>, scope: string, required: bool, timeout: ?int}>}  $options
      */
     public function __construct(
         private readonly TestLocator $tests,
@@ -196,6 +196,15 @@ final class Planner
 
             if ($file->kind === FileKind::Composer && str_ends_with($file->path, 'composer.json')) {
                 $plan->add(new Target('composer', 'composer', 'composer.json changed — validate schema and lock sync', [$file->path], [], required: false));
+            }
+
+            if ($file->kind === FileKind::Composer && ($this->options['advisories'] ?? true)) {
+                $plan->add(new Target(
+                    'advisories', 'advisories',
+                    'Dependencies changed — composer audit on the lock file',
+                    [$file->path], ['ref' => $this->gitRef ?? 'HEAD'],
+                    required: false, readsContent: false,
+                ));
             }
         }
 

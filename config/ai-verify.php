@@ -23,7 +23,7 @@ return [
     'output_cap' => 4 * 1024 * 1024,
 
     // Longer limits for slow checks: style, phpstan, tests, artisan,
-    // migration, composer, command. Example: ['tests' => 600]
+    // migration, composer, advisories, command. Example: ['tests' => 600]
     'timeouts' => [],
 
     /*
@@ -71,6 +71,7 @@ return [
         'style' => true,
         'phpstan' => true,
         'migrations' => true,
+        'advisories' => true, // composer audit when composer.json or composer.lock changes (needs network)
         'test_integrity' => true,
     ],
 

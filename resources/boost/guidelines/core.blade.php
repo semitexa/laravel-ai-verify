@@ -5,6 +5,8 @@
     - `pass`: the change set is verified, except for any check listed in `gaps`. Name those checks when you report the result.
     - `fail`: fix each `violation` (it has `path`, `line`, `message` and often a `tip` with the fixing command), then re-run.
     - `incomplete`: something could not be verified. Read `unchecked_files` and the `incomplete` results. Do not report the task as done.
+- When you change `composer.json` or `composer.lock`, the run includes `composer audit`. An advisory on a package you added or moved fails it: move the package to a fixed version. Advisories on packages you did not touch are warnings; mention them in your report, do not update them unasked.
+- `ai:verify` does not look at indexes. When you add a query that filters or sorts by a column, check that the column has one (`php artisan db:table <table>`), and add it in a new migration if not.
 - Violations marked `severity: warning` or `pre-existing` were already in the code before the change. They do not fail the run.
 - Never delete, skip or weaken a test to get a `pass`; the test-integrity check fails it. If a test change is intentional, add `// verify:accept-test-change <reason>` to the test file.
 - Every run writes a receipt (the `receipt` event). Before you say a change is verified, `php artisan ai:verify:receipt` must report `holds`: the run passed and nothing changed since.

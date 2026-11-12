@@ -19,6 +19,18 @@ Before the agent edits anything, **`php artisan ai:graph`** gives it a **code gr
 app**. It covers routes → controllers → form requests → models → tables → policies → views → tests,
 and events → listeners. It also does impact analysis: what a change affects and which tests cover it.
 
+> **Status: experimental. Whether it makes an agent's work better is not proven.**
+> We measured it on our own bench: one small Laravel app, ten chained CRUD tickets, five builds per
+> setup, Claude Sonnet.
+> - 0.9.0 with the Stop hook did not change cost or accepted tickets in a measurable way, and the
+>   agent took about 60% longer.
+> - In later runs two plain sentences in `CLAUDE.md` removed the same two audited defects as an
+>   unreleased defect hook did, cheaper and faster.
+>
+> What the package does is deterministic and described below: it runs the checks a diff needs and
+> reports what they say. That it leads to fewer problems at the end than a well-written
+> `CLAUDE.md` is still an open question. Use it as an experiment, and tell us what you see.
+
 For PHP 8.3+ and Laravel 12 or 13:
 
 ```bash
@@ -230,6 +242,7 @@ Exit code: `0` for `pass`/`skipped`, `1` for `fail`/`incomplete`.
 | `*.blade.php` | compile with the app's Blade compiler, then `php -l` on the output |
 | `*.json`, `lang/*.json` | JSON validity |
 | `composer.json` | `composer validate`, then broad scope |
+| `composer.json`, `composer.lock` | `composer audit --locked`: an advisory on a package the change added or moved fails, one on a package it left alone is a warning |
 | `tests/**/*Test.php` | runs itself, plus a test-integrity check against the base ref |
 | `tests/TestCase.php`, `tests/Pest.php`, fixtures | the nearest test directory, or the whole suite |
 | any source file | tests reachable within 4 graph hops, plus tests whose name contains the class name |
@@ -560,10 +573,10 @@ return [
     'timeout' => 120,
     'test_depth' => 4,              // graph hops when looking for related tests
     'max_test_targets' => 25,       // above this, run the suite once
-    'timeouts' => ['tests' => 600],  // per check: style, phpstan, tests, artisan, migration, composer, command
+    'timeouts' => ['tests' => 600],  // per check: style, phpstan, tests, artisan, migration, composer, advisories, command
     'ignore' => ['_ide_helper.php', 'public/build/'],               // changed files no check should see
     'test_args' => ['--parallel'],  // passed to Pest / PHPUnit
-    'checks' => ['style' => true, 'phpstan' => true, 'migrations' => true, 'test_integrity' => true],
+    'checks' => ['style' => true, 'phpstan' => true, 'migrations' => true, 'advisories' => true, 'test_integrity' => true],
     'style' => 'auto',              // or 'pint', 'php-cs-fixer', 'phpcs', 'ecs', a list, or false
     'commands' => [],               // your own checks, see "Custom checks"
     'phpstan' => ['fallback_level' => 5, 'memory_limit' => '1G'],   // fallback: Larastan without a phpstan.neon

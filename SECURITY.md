@@ -31,6 +31,7 @@ Knowing this helps tell a vulnerability from intended behaviour:
 - `ai:verify:install --hook` adds a Stop hook to `.claude/settings.json`; `--git-hook` adds a block to `.git/hooks/prepare-commit-msg`. Both only call `php artisan` commands of this package.
 - Child processes do not inherit variables loaded from `.env`, so tests do not run against the `.env` database.
 - Config, route and event caches are written to temporary files, never to `bootstrap/cache`.
-- Receipts are written to `storage/ai-verify/receipts`. Nothing is sent over the network.
+- Receipts are written to `storage/ai-verify/receipts`.
+- One check uses the network: when `composer.json` or `composer.lock` changes, `composer audit --locked` asks the project's Composer repositories (Packagist by default) for advisories, which sends them the names of the locked packages. Turn it off with `'checks' => ['advisories' => false]`. Nothing else is sent over the network.
 
 Reports about any of these crossing their stated boundary are welcome.

@@ -22,7 +22,7 @@ use Semitexa\LaravelAiVerify\Verify\Style\StyleDetector;
  */
 final class Toolkit
 {
-    public const VERSION = '0.9.0';
+    public const VERSION = '0.10.0';
 
     public const HOMEPAGE = 'https://semitexa.com';
 
@@ -198,6 +198,7 @@ final class Toolkit
             'artisan' => new Checks\ArtisanCheck($w, $this->runnerFor('artisan')),
             'migration' => new Checks\MigrationCheck($w, $this->runnerFor('migration')),
             'composer' => new Checks\ComposerCheck($this->runnerFor('composer')),
+            'advisories' => new Checks\AdvisoryCheck($w, $this->runnerFor('advisories')),
             'test_integrity' => new Checks\TestIntegrityCheck($w, $r),
             'command' => new Checks\CommandCheck($this->runnerFor('command')),
         ]);

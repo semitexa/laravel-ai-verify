@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0 - 2026-11-12
+
+- **The README now says what we could not prove.** A status note at the top: on our own bench 0.9.0 with the Stop hook did not change cost or accepted tickets in a measurable way and made the agent about 60% slower, and two plain sentences in `CLAUDE.md` later matched an unreleased defect hook. The package is experimental until a measured run shows otherwise.
+- **Dependency changes get `composer audit`.** When `composer.json` or `composer.lock` is in the change, a new `advisories` check runs `composer audit --locked`.
+  - An advisory on a package the change added or moved to another version fails the run, with the package, its version, the advisory title and link. An advisory on a package that was already locked at the base ref is a warning, as with style and PHPStan: only what the change brought in fails.
+  - An audit with no readable answer (no network, a Composer without `audit --locked`) is `skipped` with Composer's own reason and appears in `gaps`. It is never a pass.
+  - The check is optional, like style and PHPStan. `'checks' => ['advisories' => false]` turns it off; `timeouts.advisories` sets its limit. It is the one check that uses the network, see `SECURITY.md`.
+  - Where it came from: we ran mrpunyapal/laravel-auditor through our bench. A plain "audit this app" prompt missed six open Symfony advisories in all five test apps; with that package installed the agent ran `composer audit` in four of five and reported them. This is the part worth having on every dependency change.
+- **One more line for agents.** The guideline tells agents to check for an index when they add a query that filters or sorts by a column, and says that `ai:verify` does not check this. In the same bench run a plain audit prompt missed an unindexed status filter in five of five apps. Not measured: whether the line changes what agents do.
+
 ## 0.9.0 - 2026-11-05
 
 - **Static analysis no longer goes missing without anyone noticing.** We ran `ai:verify` through 33 agent sessions in a benchmark and found PHPStan had been skipped in all of them: Larastan wasn't installed, the verdict was still `pass`, and agents left all 31 `next` hints to install it unused.

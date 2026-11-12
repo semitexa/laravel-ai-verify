@@ -141,6 +141,7 @@ final class Report
                 $result->check === 'tests' && $result->status === Result::FAIL => ['cmd' => 'php artisan test '.(str_starts_with($result->id, 'tests:suite') ? '' : substr($result->id, 6)), 'why' => 'reproduce the failing test with full output'],
                 $result->check === 'phpstan' && $result->status === Result::SKIPPED => ['cmd' => 'composer require --dev larastan/larastan', 'why' => 'enable static analysis of changed code'],
                 $result->check === 'test_integrity' && $result->status === Result::FAIL => ['cmd' => 'git diff '.implode(' ', array_unique($files)), 'why' => 'restore the removed tests/assertions, or mark the change with // verify:accept-test-change <reason>'],
+                $result->check === 'advisories' && $result->status === Result::FAIL => ['cmd' => 'composer audit --locked', 'why' => 'read the advisories, then move the named packages to a fixed version'],
                 $result->check === 'artisan' && $result->status === Result::FAIL => ['cmd' => 'php artisan '.implode(' ', ArtisanCheck::PROBES[substr($result->id, 8)]['args'] ?? []), 'why' => 'reproduce the boot failure with the full stack trace'],
                 default => null,
             };

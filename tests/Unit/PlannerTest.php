@@ -176,4 +176,17 @@ final class PlannerTest extends TestCase
 
         $this->assertLessThan(array_search('tests:tests/Feature/PostTest.php', $ids, true), array_search('command:lint', $ids, true));
     }
+
+    public function test_a_changed_lock_file_plans_one_advisory_audit(): void
+    {
+        $plan = $this->plan(['composer.json' => 'M', 'composer.lock' => 'M']);
+        $target = $plan->get('advisories');
+
+        $this->assertNotNull($target);
+        $this->assertFalse($target->required);
+        $this->assertSame(['composer.json', 'composer.lock'], $target->triggeredBy);
+        $this->assertNull($this->plan(['composer.lock' => 'M'], Scope::Standard, ['advisories' => false])->get('advisories'));
+        $this->assertNull($this->plan(['app/Models/Post.php' => 'M'])->get('advisories'));
+        $this->assertNull($this->plan(['composer.lock' => 'M'], Scope::Minimal)->get('advisories'));
+    }
 }
